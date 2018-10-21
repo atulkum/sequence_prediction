@@ -1,18 +1,14 @@
 from __future__ import division
 
-import sys
-import time
-import logging
-import StringIO
-from collections import defaultdict, Counter, OrderedDict
+
+from collections import defaultdict, Counter
 import numpy as np
-from numpy import array, zeros, allclose
 
 class ConfusionMatrix(object):
-    def __init__(self, labels, default_label=None):
-        self.labels = labels
-        self.default_label = default_label if default_label is not None else len(labels) -1
+    def __init__(self, labels, default_label):
         self.counts = defaultdict(Counter)
+        self.labels = labels
+        self.default_label = default_label
 
     @staticmethod
     def to_table(data, row_labels, column_labels, precision=2, digits=4):
@@ -40,12 +36,12 @@ class ConfusionMatrix(object):
     def update(self, gold, guess):
         self.counts[gold][guess] += 1
 
-    def summary(self, quiet=False):
+    def summary(self):
         keys = range(len(self.labels))
         data = []
-        macro = array([0., 0., 0., 0.])
-        micro = array([0., 0., 0., 0.])
-        default = array([0., 0., 0., 0.])
+        macro = np.array([0., 0., 0., 0.])
+        micro = np.array([0., 0., 0., 0.])
+        default = np.array([0., 0., 0., 0.])
         for l in keys:
             tp = self.counts[l][l]
             fp = sum(self.counts[l_][l] for l_ in keys if l_ != l)
@@ -58,10 +54,10 @@ class ConfusionMatrix(object):
             f1 = 2 * prec * rec / (prec + rec) if tp > 0  else 0
 
             # update micro/macro averages
-            micro += array([tp, fp, tn, fn])
-            macro += array([acc, prec, rec, f1])
+            micro += np.array([tp, fp, tn, fn])
+            macro += np.array([acc, prec, rec, f1])
             if l != self.default_label: # Count count for everything that is not the default label!
-                default += array([tp, fp, tn, fn])
+                default += np.array([tp, fp, tn, fn])
 
             data.append([acc, prec, rec, f1])
 
@@ -86,47 +82,51 @@ class ConfusionMatrix(object):
         # Macro and micro average.
         return ConfusionMatrix.to_table(data, self.labels + ["micro","macro","not-O"], ["label", "acc", "prec", "rec", "f1"])
 
+class Evaluter(object):
+    def __init__(self, dataset):
+        self.token_cm = ConfusionMatrix(dataset.get_labels(), dataset.get_default_label())
+        self.correct_preds, self.total_correct, self.total_preds = 0., 0., 0.
+        self.dataset = dataset
 
-def get_chunks(seq, default=LBLS.index(NONE)):
-    chunks = []
-    chunk_type, chunk_start = None, None
-    for i, tok in enumerate(seq):
-        # End of a chunk 1
-        if tok == default and chunk_type is not None:
-            # Add a chunk.
-            chunk = (chunk_type, chunk_start, i)
-            chunks.append(chunk)
-            chunk_type, chunk_start = None, None
-        # End of a chunk + start of a chunk!
-        elif tok != default:
-            if chunk_type is None:
-                chunk_type, chunk_start = tok, i
-            elif tok != chunk_type:
-                chunk = (chunk_type, chunk_start, i)
-                chunks.append(chunk)
-                chunk_type, chunk_start = tok, i
-        else:
-            pass
-    # end condition
-    if chunk_type is not None:
-        chunk = (chunk_type, chunk_start, len(seq))
-        chunks.append(chunk)
-    return chunks
+    def batch_update(self, batch, pred_labelid):
+        (_, s_lengths), y = batch.word, batch.ner
+        lables_true = y.data.numpy()
+        lables_pred = pred_labelid.data.numpy()
 
-def evaluate(self, sess, examples, examples_raw):
-    token_cm = ConfusionMatrix(labels=LBLS)
+        for i, s_len in enumerate(s_lengths):
+            for j in range(s_len):
+                self.token_cm.update(lables_true[i][j], lables_pred[i][j])
 
-    correct_preds, total_correct, total_preds = 0., 0., 0.
-    for _, labels, labels_ in self.output(sess, examples_raw, examples):
-        for l, l_ in zip(labels, labels_):
-            token_cm.update(l, l_)
-        gold = set(get_chunks(labels))
-        pred = set(get_chunks(labels_))
-        correct_preds += len(gold.intersection(pred))
-        total_preds += len(pred)
-        total_correct += len(gold)
+            labels = self.dataset.label_ids2labels(lables_true[i], s_len)
+            labels_ = self.dataset.label_ids2labels(lables_pred[i], s_len)
 
-    p = correct_preds / total_preds if correct_preds > 0 else 0
-    r = correct_preds / total_correct if correct_preds > 0 else 0
-    f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
-    return token_cm, (p, r, f1)
+            gold = set(self.dataset.get_chunks(labels))
+            pred = set(self.dataset.get_chunks(labels_))
+            self.correct_preds += len(gold.intersection(pred))
+            self.total_preds += len(pred)
+            self.total_correct += len(gold)
+
+    def get_metric(self):
+        p = self.correct_preds / self.total_preds if self.correct_preds > 0 else 0
+        r = self.correct_preds / self.total_correct if self.correct_preds > 0 else 0
+        f1 = 2 * p * r / (p + r) if self.correct_preds > 0 else 0
+        return p, r, f1
+
+if __name__ == '__main__':
+    from config import config
+    from conll2003_batcher import DatasetConll2003
+    ds = DatasetConll2003(config)
+    train_iter = ds.get_train_iterator()
+
+    ev = Evaluter(ds)
+
+    batch = next(iter(train_iter))
+    (s, s_lengths), y = batch.word, batch.ner
+    ev.batch_update(batch, y)
+
+    batch = next(iter(train_iter))
+    (s, s_lengths), y = batch.word, batch.ner
+    ev.batch_update(batch, y)
+
+    print(ev.get_metric())
+    print(ev.token_cm.summary())

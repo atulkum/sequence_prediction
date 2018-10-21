@@ -13,7 +13,7 @@ from torch.nn.utils import clip_grad_norm_
 from torch.optim import Adam
 
 from config import config
-from model import CoattentionModel
+from model import NCRF
 
 logging.basicConfig(level=logging.INFO)
 
@@ -22,60 +22,6 @@ use_cuda = torch.cuda.is_available()
 class Processor(object):
     def __init__(self):
        pass
-
-    def get_mask_from_seq_len(self, seq_mask):
-        seq_lens = np.sum(seq_mask, 1)
-        max_len = np.max(seq_lens)
-        indices = np.arange(0, max_len)
-        mask = (indices < np.expand_dims(seq_lens, 1)).astype(int)
-        return mask
-
-
-    def save_model(self, model, optimizer, loss, global_step, epoch, model_dir):
-        model_state = model.state_dict()
-        model_state = {k: v for k, v in model_state.items() if 'embedding' not in k}
-
-        state = {
-            'global_step': global_step,
-            'epoch': epoch,
-            'model': model_state,
-            'optimizer': optimizer.state_dict(),
-            'current_loss': loss
-        }
-        model_save_path = os.path.join(model_dir, 'model_%d_%d_%d' % (global_step, epoch, int(time.time())))
-        torch.save(state, model_save_path)
-
-    def get_model(self, model_file_path=None, is_eval=False):
-        model = CoattentionModel(config.hidden_dim, config.maxout_pool_size,
-                                 self.emb_matrix, config.max_dec_steps, config.dropout_ratio)
-
-        if is_eval:
-            model = model.eval()
-        if use_cuda:
-            model = model.cuda()
-
-        if model_file_path is not None:
-            state = torch.load(model_file_path, map_location=lambda storage, location: storage)
-            model.load_state_dict(state['model'], strict=False)
-
-        return model
-
-    def get_grad_norm(self, parameters, norm_type=2):
-        parameters = list(filter(lambda p: p.grad is not None, parameters))
-        total_norm = 0
-        for p in parameters:
-            param_norm = p.grad.data.norm(norm_type)
-            total_norm += param_norm ** norm_type
-        total_norm = total_norm ** (1. / norm_type)
-        return total_norm
-
-    def get_param_norm(self, parameters, norm_type=2):
-        total_norm = 0
-        for p in parameters:
-            param_norm = p.data.norm(norm_type)
-            total_norm += param_norm ** norm_type
-        total_norm = total_norm ** (1. / norm_type)
-        return total_norm
 
     def train_one_batch(self, batch, model, optimizer, params):
         model.train()
@@ -114,35 +60,22 @@ class Processor(object):
         return pred_start_pos.data, pred_end_pos.data
 
     def train(self, model_file_path):
-        train_dir = os.path.join(config.log_root, 'train_%d' % (int(time.time())))
-        if not os.path.exists(train_dir):
-            os.mkdir(train_dir)
-        model_dir = os.path.join(train_dir, 'model')
-        if not os.path.exists(model_dir):
-            os.mkdir(model_dir)
-        bestmodel_dir = os.path.join(train_dir, 'bestmodel')
-        if not os.path.exists(bestmodel_dir):
-           os.makedirs(bestmodel_dir)
+        train_dir, model_dir, bestmodel_dir, summary_writer = setup_train_dir(config)
 
-        summary_writer = tf.summary.FileWriter(train_dir)
-
-        with open(os.path.join(train_dir, "flags.json"), 'w') as fout:
-            json.dump(vars(config), fout)
-
-        model = self.get_model(model_file_path)
+        model = get_model(model_file_path)
         params = filter(lambda p: p.requires_grad, model.parameters())
         optimizer = Adam(params, lr=config.lr, amsgrad=True)
 
         num_params = sum(p.numel() for p in params)
         logging.info("Number of params: %d" % num_params)
 
-        exp_loss, best_dev_f1, best_dev_em = None, None, None
+        exp_loss, best_dev_f1 = None, None
 
         epoch = 0
         global_step = 0
 
         logging.info("Beginning training loop...")
-        while config.num_epochs == 0 or epoch < config.num_epochs:
+        while config.num_epochs == -1 or epoch < config.num_epochs:
             epoch += 1
             epoch_tic = time.time()
             for batch in sequence_batcher:
@@ -155,10 +88,7 @@ class Processor(object):
                 iter_toc = time.time()
                 iter_time = iter_toc - iter_tic
 
-                if not exp_loss:
-                    exp_loss = loss
-                else:
-                    exp_loss = 0.99 * exp_loss + 0.01 * loss
+                exp_loss = 0.99 * exp_loss + 0.01 * loss if exp_loss else loss
 
                 if global_step % config.print_every == 0:
                     logging.info(
@@ -168,7 +98,7 @@ class Processor(object):
 
                 if global_step % config.save_every == 0:
                     logging.info("Saving to %s..." % model_dir)
-                    self.save_model(model, optimizer, loss, global_step, epoch, model_dir)
+                    save_model(model, optimizer, loss, global_step, epoch, model_dir)
 
                 if global_step % config.eval_every == 0:
                     dev_loss = self.get_dev_loss(model)
@@ -201,8 +131,8 @@ class Processor(object):
 
         sys.stdout.flush()
 
-    def check_f1_em(self, model, dataset, num_samples=100, print_to_screen=False):
-        logging.info("Calculating F1/EM for %s examples in %s set..." % (str(num_samples) if num_samples != 0 else "all", dataset))
+    def check_f1(self, model, dataset, num_samples=100, print_to_screen=False):
+        logging.info("Calculating F1 for %s examples in %s set..." % (str(num_samples) if num_samples != 0 else "all", dataset))
 
         if dataset == "train":
             context_path, qn_path, ans_path = self.train_context_path, self.train_qn_path, self.train_ans_path
@@ -282,10 +212,7 @@ class Processor(object):
 
         return dev_loss
 
-def write_summary(value, tag, summary_writer, global_step):
-    summary = tf.Summary()
-    summary.value.add(tag=tag, simple_value=value)
-    summary_writer.add_summary(summary, global_step)
+
 
 if __name__ == "__main__":
     mode = sys.argv[1]
