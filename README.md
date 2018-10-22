@@ -14,4 +14,4 @@ conda install pytorch  -c pytorch
 pip install torchtext
 
 ```
-
+CoNLL-2003 can be downloaded from https://www.clips.uantwerpen.be/conll2003/ner/
