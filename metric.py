@@ -3,6 +3,9 @@ from __future__ import division
 
 from collections import defaultdict, Counter
 import numpy as np
+import time
+
+from model import test_one_batch
 
 class ConfusionMatrix(object):
     def __init__(self, labels, default_label):
@@ -11,7 +14,7 @@ class ConfusionMatrix(object):
         self.default_label = default_label
 
     @staticmethod
-    def to_table(data, row_labels, column_labels, precision=2, digits=4):
+    def to_table(data, row_labels, column_labels):
         # Convert data to strings
         data = [["%04.2f" % v for v in row] for row in data]
         cell_width = max(
@@ -111,6 +114,36 @@ class Evaluter(object):
         r = self.correct_preds / self.total_correct if self.correct_preds > 0 else 0
         f1 = 2 * p * r / (p + r) if self.correct_preds > 0 else 0
         return p, r, f1
+
+def evaluate(dataset, model, data_type, num_samples=None):
+    tic = time.time()
+    loss_per_batch = 0
+    total_num_examples = 0
+
+    batch_iterator = dataset.get_data_iterator(data_type)
+    ev = Evaluter(dataset)
+
+    for batch in batch_iterator:
+        (s, s_lengths), y = batch.word, batch.ner
+        logits, pred = test_one_batch(s, s_lengths, model)
+        loss = model.get_loss(logits, y, s_lengths)
+
+        curr_batch_size = batch.batch_size
+        loss_per_batch += loss * curr_batch_size
+        total_num_examples += curr_batch_size
+
+        ev.batch_update(batch, pred)
+
+        if num_samples and total_num_examples > num_samples:
+            break
+
+    toc = time.time()
+    print("Computed inference over %i examples in %.2f seconds" % (total_num_examples, toc - tic))
+
+    total_loss = loss_per_batch / float(total_num_examples)
+    p, r, f1 = ev.get_metric()
+    print(ev.token_cm.summary())
+    return total_loss, p, r, f1
 
 if __name__ == '__main__':
     from config import config
