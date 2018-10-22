@@ -14,4 +14,4 @@ conda install pytorch  -c pytorch
 pip install torchtext
 
 ```
-Conll2003 data can be downloaded from https://github.com/synalp/NER/tree/master/corpus/CoNLL-2003
+CoNLL-2003 can be downloaded from https://www.clips.uantwerpen.be/conll2003/ner/
