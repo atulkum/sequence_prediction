@@ -123,49 +123,47 @@ class DatasetConll2003(object):
         return self.labels
 
     def get_ner_BIO(self, label_list):
-        list_len = len(label_list)
         begin_label = 'B-'
         inside_label = 'I-'
-        whole_tag = ''
-        index_tag = ''
-        tag_list = []
-        stand_matrix = []
-        for i in range(0, list_len):
-            # wordlabel = word_list[i]
+        chunks = []
+        chunk_type, chunk_start = None, None
+
+        for i, tok in enumerate(label_list):
             current_label = label_list[i].upper()
+
             if begin_label in current_label:
-                if index_tag == '':
-                    whole_tag = current_label.replace(begin_label, "", 1) + '[' + str(i)
-                    index_tag = current_label.replace(begin_label, "", 1)
+                current_label_tag = current_label.replace(begin_label, "", 1)
+                if chunk_type is None:
+                    chunk_type = current_label_tag
+                    chunk_start = i
                 else:
-                    tag_list.append(whole_tag + ',' + str(i - 1))
-                    whole_tag = current_label.replace(begin_label, "", 1) + '[' + str(i)
-                    index_tag = current_label.replace(begin_label, "", 1)
+                    chunk = (chunk_type, chunk_start, i)
+                    chunks.append(chunk)
+
+                    chunk_type = current_label_tag
+                    chunk_start = i
 
             elif inside_label in current_label:
-                if current_label.replace(inside_label, "", 1) == index_tag:
-                    whole_tag = whole_tag
-                else:
-                    if (whole_tag != '') & (index_tag != ''):
-                        tag_list.append(whole_tag + ',' + str(i - 1))
-                    whole_tag = ''
-                    index_tag = ''
-            else:
-                if (whole_tag != '') & (index_tag != ''):
-                    tag_list.append(whole_tag + ',' + str(i - 1))
-                whole_tag = ''
-                index_tag = ''
+                current_label_tag = current_label.replace(inside_label, "", 1)
+                if current_label_tag != chunk_type:
+                    chunk = (chunk_type, chunk_start, i)
+                    chunks.append(chunk)
 
-        if (whole_tag != '') & (index_tag != ''):
-            tag_list.append(whole_tag)
-        tag_list_len = len(tag_list)
+                chunk_type = None
+                chunk_start = None
+            else:  # 'O'
+                if chunk_type is not None and chunk_start is not None:
+                    chunk = (chunk_type, chunk_start, i)
+                    chunks.append(chunk)
 
-        for i in range(0, tag_list_len):
-            if len(tag_list[i]) > 0:
-                tag_list[i] = tag_list[i] + ']'
-                insert_list = reverse_style(tag_list[i])
-                stand_matrix.append(insert_list)
-        return stand_matrix
+                chunk_type = None
+                chunk_start = None
+
+        if chunk_type is not None and chunk_start is not None:
+            chunk = (chunk_type, chunk_start, len(label_list))
+            chunks.append(chunk)
+
+        return chunks
 
     def get_chunks(self, seq):
         default_label = 'O'

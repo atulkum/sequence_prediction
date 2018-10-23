@@ -1,71 +1,56 @@
-def get_ner_fmeasure(golden_lists, predict_lists, label_type="BMES"):
-    sent_num = len(golden_lists)
-    golden_full = []
-    predict_full = []
-    right_full = []
-    right_tag = 0
-    all_tag = 0
-    for idx in range(0,sent_num):
-        # word_list = sentence_lists[idx]
-        golden_list = golden_lists[idx]
-        predict_list = predict_lists[idx]
-        for idy in range(len(golden_list)):
-            if golden_list[idy] == predict_list[idy]:
-                right_tag += 1
-        all_tag += len(golden_list)
-        if label_type == "BMES":
-            gold_matrix = get_ner_BMES(golden_list)
-            pred_matrix = get_ner_BMES(predict_list)
-        else:
-            gold_matrix = get_ner_BIO(golden_list)
-            pred_matrix = get_ner_BIO(predict_list)
-        # print "gold", gold_matrix
-        # print "pred", pred_matrix
-        right_ner = list(set(gold_matrix).intersection(set(pred_matrix)))
-        golden_full += gold_matrix
-        predict_full += pred_matrix
-        right_full += right_ner
-    right_num = len(right_full)
-    golden_num = len(golden_full)
-    predict_num = len(predict_full)
-    if predict_num == 0:
-        precision = -1
-    else:
-        precision =  (right_num+0.0)/predict_num
-    if golden_num == 0:
-        recall = -1
-    else:
-        recall = (right_num+0.0)/golden_num
-    if (precision == -1) or (recall == -1) or (precision+recall) <= 0.:
-        f_measure = -1
-    else:
-        f_measure = 2*precision*recall/(precision+recall)
-    accuracy = (right_tag+0.0)/all_tag
-    # print "Accuracy: ", right_tag,"/",all_tag,"=",accuracy
-    print("gold_num = ", golden_num, " pred_num = ", predict_num, " right_num = ", right_num)
-    return accuracy, precision, recall, f_measure
+class Evaluter(object):
+    def __init__(self, dataset, label_type):
+        self.correct_preds, self.total_correct, self.total_preds = 0., 0., 0.
 
+        self.right_tag, self.all_tag = 0
 
-def reverse_style(input_string):
-    target_position = input_string.index('[')
-    input_len = len(input_string)
-    output_string = input_string[target_position:input_len] + input_string[0:target_position]
-    return output_string
+        self.label_type = label_type
+        self.dataset = dataset
 
+    def batch_update(self, batch, pred_labelid):
+        (_, s_lengths), y = batch.word, batch.ner
+        golden_lists = y.data.numpy()
+        predict_lists = pred_labelid.data.numpy()
+        for i, s_len in enumerate(s_lengths):
+            golden_list = self.dataset.label_ids2labels(golden_lists[i], s_len)
+            predict_list = self.dataset.label_ids2labels(predict_lists[i], s_len)
 
-def get_ner_BMES(label_list):
-    # list_len = len(word_list)
-    # assert(list_len == len(label_list)), "word list size unmatch with label list"
+            for idy in range(s_len):
+                if golden_list[idy] == predict_list[idy]:
+                        self.right_tag += 1
+            self.all_tag += len(golden_list)
+
+            if self.label_type == "IOBES":
+                gold_matrix = self.dataset.get_ner_IOBES(golden_list)
+                pred_matrix = self.dataset.get_ner_IOBES(predict_list)
+            else:
+                gold_matrix = self.dataset.get_ner_BIO(golden_list)
+                pred_matrix = self.dataset.get_ner_BIO(predict_list)
+
+            right_ner = list(set(gold_matrix).intersection(set(pred_matrix)))
+            self.correct_preds += len(right_ner)
+            self.total_preds += len(pred_matrix)
+            self.total_correct += len(gold_matrix)
+
+    def get_metric(self):
+        precision = self.correct_preds / self.total_preds if self.correct_preds > 0 else 0
+        recall = self.correct_preds / self.total_correct if self.correct_preds > 0 else 0
+        f1 = 2 * precision * recall / (precision + recall) if self.correct_preds > 0 else 0
+
+        accuracy = self.right_tag/self.all_tag
+        # print "Accuracy: ", right_tag,"/",all_tag,"=",accuracy
+        print("gold_num = ", self.total_correct, " pred_num = ", self.total_preds, " right_num = ", self.correct_preds)
+        return accuracy, precision, recall, f1
+
+def get_ner_IOBES(label_list):
     list_len = len(label_list)
     begin_label = 'B-'
     end_label = 'E-'
     single_label = 'S-'
-    whole_tag = ''
-    index_tag = ''
-    tag_list = []
-    stand_matrix = []
+    whole_tag = None
+    index_tag = None
+
     for i in range(0, list_len):
-        # wordlabel = word_list[i]
         current_label = label_list[i].upper()
         if begin_label in current_label:
             if index_tag != '':
@@ -89,61 +74,5 @@ def get_ner_BMES(label_list):
             continue
     if (whole_tag != '')&(index_tag != ''):
         tag_list.append(whole_tag)
-    tag_list_len = len(tag_list)
 
-    for i in range(0, tag_list_len):
-        if  len(tag_list[i]) > 0:
-            tag_list[i] = tag_list[i]+ ']'
-            insert_list = reverse_style(tag_list[i])
-            stand_matrix.append(insert_list)
-    # print stand_matrix
-    return stand_matrix
-
-
-def get_ner_BIO(label_list):
-    # list_len = len(word_list)
-    # assert(list_len == len(label_list)), "word list size unmatch with label list"
-    list_len = len(label_list)
-    begin_label = 'B-'
-    inside_label = 'I-'
-    whole_tag = ''
-    index_tag = ''
-    tag_list = []
-    stand_matrix = []
-    for i in range(0, list_len):
-        # wordlabel = word_list[i]
-        current_label = label_list[i].upper()
-        if begin_label in current_label:
-            if index_tag == '':
-                whole_tag = current_label.replace(begin_label,"",1) +'[' +str(i)
-                index_tag = current_label.replace(begin_label,"",1)
-            else:
-                tag_list.append(whole_tag + ',' + str(i-1))
-                whole_tag = current_label.replace(begin_label,"",1)  + '[' + str(i)
-                index_tag = current_label.replace(begin_label,"",1)
-
-        elif inside_label in current_label:
-            if current_label.replace(inside_label,"",1) == index_tag:
-                whole_tag = whole_tag
-            else:
-                if (whole_tag != '')&(index_tag != ''):
-                    tag_list.append(whole_tag +',' + str(i-1))
-                whole_tag = ''
-                index_tag = ''
-        else:
-            if (whole_tag != '')&(index_tag != ''):
-                tag_list.append(whole_tag +',' + str(i-1))
-            whole_tag = ''
-            index_tag = ''
-
-    if (whole_tag != '')&(index_tag != ''):
-        tag_list.append(whole_tag)
-    tag_list_len = len(tag_list)
-
-    for i in range(0, tag_list_len):
-        if  len(tag_list[i]) > 0:
-            tag_list[i] = tag_list[i]+ ']'
-            insert_list = reverse_style(tag_list[i])
-            stand_matrix.append(insert_list)
-    return stand_matrix
 

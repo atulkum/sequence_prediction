@@ -1,4 +1,8 @@
-def BIO2BIOES(input_file, output_file):
+import os
+
+def bio2bioes(path, input_file, output_file):
+    input_file = os.path.join(path, input_file)
+    output_file = os.path.join(path, output_file)
     with open(input_file,'r') as in_file:
         fins = in_file.readlines()
     fout = open(output_file,'w')
@@ -30,3 +34,10 @@ def BIO2BIOES(input_file, output_file):
             words.append(pair[0])
             labels.append(pair[-1].upper())
     fout.close()
+
+if __name__ == "__main__":
+    from config import config
+
+    bio2bioes(config.data_dir, 'eng.testa.bio', 'eng.testa.bioes')
+    bio2bioes(config.data_dir, 'eng.testb.bio', 'eng.testb.bioes')
+    bio2bioes(config.data_dir, 'eng.train.bio', 'eng.train.bioes')

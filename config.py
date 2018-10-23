@@ -8,9 +8,9 @@ root_dir = os.path.join(os.path.expanduser('~'), 'Downloads/nlp_class')
 config.data_dir = os.path.join(root_dir, 'neural_ner/CoNLL-2003')
 config.log_root = os.path.join(root_dir, 'neural_ner/log')
 
-config.train_file='eng.train'
-config.validation_file='eng.testa'
-config.test_file='eng.testb'
+config.train_file='eng.train.bioes'
+config.validation_file='eng.testa.bioes'
+config.test_file='eng.testb.bioes'
 
 config.hidden_dim = 200
 config.embedding_size=100
