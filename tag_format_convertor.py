@@ -116,11 +116,12 @@ def choose_label(path, input_file, output_file):
 if __name__ == "__main__":
     from config import config
 
-    #bio2bioes(config.data_dir, 'eng.testa', 'eng.testa.bioes')
-    #bio2bioes(config.data_dir, 'eng.testb', 'eng.testb.bioes')
-    #bio2bioes(config.data_dir, 'eng.train', 'eng.train.bioes')
+    #bio2bioes(config.data_dir, 'eng.testa.bio', 'eng.testa.bioes')
+    #bio2bioes(config.data_dir, 'eng.testb.bio', 'eng.testb.bioes')
+    #bio2bioes(config.data_dir, 'eng.train.bio', 'eng.train.bioes')
 
-    choose_label(config.data_dir, 'eng.testa', 'eng.testa.bio')
-    choose_label(config.data_dir, 'eng.testb', 'eng.testb.bio')
-    choose_label(config.data_dir, 'eng.train', 'eng.train.bio')
+    #iob2bio(config.data_dir, 'eng.testa', 'eng.testa.bio')
+    iob2bio(config.data_dir, 'eng.testb', 'eng.testb.bio')
+    bio2bioes(config.data_dir, 'eng.testb.bio', 'eng.testb.bioes')
+    #iob2bio(config.data_dir, 'eng.train', 'eng.train.bio')
 

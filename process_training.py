@@ -116,9 +116,9 @@ class Processor(object):
 
     def evaluate_test(self):
         logging.info("Calculating test loss...")
-        test_loss, test_p, test_r, test_f1 = evaluate(self.dataset, self.model,
-                                                      DatasetConll2003.DATA_TYPE_TEST)
-        logging.info("Test loss: %f, precision, recall, F1: %f, %f, %f" % (test_loss, test_p, test_r, test_f1))
+        test_loss, test_acc, test_p, test_r, test_f1 = evaluate(self.dataset, self.model,
+                                                                DatasetConll2003.DATA_TYPE_TEST)
+        logging.info("Test loss: %f, accuracy, precision, recall, F1: %f, %f, %f, %f" % (test_loss, test_acc, test_p, test_r, test_f1))
 
 if __name__ == "__main__":
     mode = sys.argv[1]

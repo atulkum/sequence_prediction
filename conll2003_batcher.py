@@ -24,14 +24,13 @@ class DatasetConll2003(object):
 
         TEXT_WORD = data.Field(pad_token='<pad>', unk_token='<unk>',
                                batch_first=True, lower=True, include_lengths=True)
-        #CHAR_NESTING = data.Field(pad_token='<c>',
-        #                          tokenize=list, batch_first=True)
-        #TEXT_CHAR = data.NestedField(CHAR_NESTING, include_lengths=True)
+        CHAR_NESTING = data.Field(pad_token='<c>',
+                                  tokenize=list, batch_first=True)
+        TEXT_CHAR = data.NestedField(CHAR_NESTING, include_lengths=True)
         NER_LABELS = data.Field(pad_token='<pad>', unk_token=None, batch_first=True,
                                 is_target=True, postprocessing=lambda arr, _: [[x-1 for x in ex] for ex in arr])
 
-        #fields = ([(('word', 'char'), (TEXT_WORD, TEXT_CHAR))] +
-        fields = ([('word', TEXT_WORD)] + [('ner', NER_LABELS)])
+        fields = ([(('word', 'char'), (TEXT_WORD, TEXT_CHAR))] + [('ner', NER_LABELS)])
 
         train, val, test = SequenceTaggingDataset.splits(
             path=config.data_dir,
@@ -52,24 +51,23 @@ class DatasetConll2003(object):
         logging.info('Validation size: %d' % (len(val)))
         logging.info('Test size: %d' % (len(test)))
 
-        #TEXT_CHAR.build_vocab(train.char, val.char, test.char)
+        TEXT_CHAR.build_vocab(train.char, val.char, test.char)
         TEXT_WORD.build_vocab(train.word, val.word, test.word, max_size=50000,
                                 vectors=[GloVe(name='6B', dim='200')])
 
         NER_LABELS.build_vocab(train.ner)
 
         self.TEXT_WORD = TEXT_WORD
-        #self.char_vocab = TEXT_CHAR.vocab
+        self.char_vocab = TEXT_CHAR.vocab
         self.NER_LABELS = NER_LABELS
 
         self.labels = self.NER_LABELS.vocab.itos[1:]
 
         logging.info('Input word vocab size:%d' % (len(self.TEXT_WORD.vocab)))
-        #logging.info('Input char vocab size:%d' % (len(self.char_vocab)))
+        logging.info('Input char vocab size:%d' % (len(self.char_vocab)))
         logging.info('NER Tagset size: %d' % (len(self.labels)))
 
         self.sort_key = lambda x: len(x.word)
-
 
     def get_train_iterator(self):
         return data.BucketIterator(
