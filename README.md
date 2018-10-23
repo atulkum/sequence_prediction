@@ -2,9 +2,9 @@
 
 ## TO-DO
 - - [ ] CharLSTM+WordLSTM+CRF: [Lample .etc, NAACL16](http://www.aclweb.org/anthology/N/N16/N16-1030.pdf)
-  - - [ ] Make a CoNLL-2003 batcher using pytorchtext
-  - - [ ] Implement trainer
-  - - [ ] Implement WordLSTM + softmax
+  - - [x] Make a CoNLL-2003 batcher using pytorchtext
+  - - [x] Implement trainer
+  - - [x] Implement WordLSTM + softmax
   - - [ ] Implement WordLSTM + CRF
   - - [ ] Implement CharLSTM + WordLSTM + CRF
 
