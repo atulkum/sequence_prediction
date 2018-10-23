@@ -83,8 +83,8 @@ class NER_CRF(nn.Module):
         super(NER_CRF, self).__init__()
         self.pad_labelid = pad_labelid
         self.reg_lambda = reg_lambda
-        self.start_tag_idx = tagset_size + 1
-        self.stop_tag_idx = tagset_size + 2
+        self.start_tag_idx = tagset_size
+        self.stop_tag_idx = tagset_size + 1
         self.all_tagset_size = tagset_size + 2
 
         self.word_embeds = nn.Embedding.from_pretrained(embd_vector)
