@@ -20,6 +20,8 @@ class DatasetConll2003(object):
         self.batch_size = config.batch_size
         self.is_cuda = is_cuda
         self.num_special_toks = 2 #for '<pad>' and '<unk>'
+        self.label_type = config.label_type
+
         TEXT_WORD = data.Field(pad_token='<pad>', unk_token='<unk>',
                                batch_first=True, lower=True, include_lengths=True)
         #CHAR_NESTING = data.Field(pad_token='<c>',
@@ -29,8 +31,7 @@ class DatasetConll2003(object):
                                 is_target=True, postprocessing=lambda arr, _: [[x-1 for x in ex] for ex in arr])
 
         #fields = ([(('word', 'char'), (TEXT_WORD, TEXT_CHAR))] +
-        fields = ([('word', TEXT_WORD)] +
-                  [(None, None), (None, None), ('ner', NER_LABELS)])
+        fields = ([('word', TEXT_WORD)] + [('ner', NER_LABELS)])
 
         train, val, test = SequenceTaggingDataset.splits(
             path=config.data_dir,
@@ -122,48 +123,103 @@ class DatasetConll2003(object):
     def get_labels(self):
         return self.labels
 
-    def get_ner_BIO(self, label_list):
+    @staticmethod
+    def reverse_style(input_string):
+        target_position = input_string.index('[')
+        input_len = len(input_string)
+        output_string = input_string[target_position:input_len] + input_string[0:target_position]
+        return output_string
+
+    @staticmethod
+    def get_ner_BIOES(label_list):
+        list_len = len(label_list)
+        begin_label = 'B-'
+        end_label = 'E-'
+        single_label = 'S-'
+        whole_tag = ''
+        index_tag = ''
+        tag_list = []
+        stand_matrix = []
+        for i in range(0, list_len):
+            # wordlabel = word_list[i]
+            current_label = label_list[i].upper()
+            if begin_label in current_label:
+                if index_tag != '':
+                    tag_list.append(whole_tag + ',' + str(i - 1))
+                whole_tag = current_label.replace(begin_label, "", 1) + '[' + str(i)
+                index_tag = current_label.replace(begin_label, "", 1)
+
+            elif single_label in current_label:
+                if index_tag != '':
+                    tag_list.append(whole_tag + ',' + str(i - 1))
+                whole_tag = current_label.replace(single_label, "", 1) + '[' + str(i)
+                tag_list.append(whole_tag)
+                whole_tag = ""
+                index_tag = ""
+            elif end_label in current_label:
+                if index_tag != '':
+                    tag_list.append(whole_tag + ',' + str(i))
+                whole_tag = ''
+                index_tag = ''
+            else:
+                continue
+        if (whole_tag != '') & (index_tag != ''):
+            tag_list.append(whole_tag)
+        tag_list_len = len(tag_list)
+
+        for i in range(0, tag_list_len):
+            if len(tag_list[i]) > 0:
+                tag_list[i] = tag_list[i] + ']'
+                insert_list = DatasetConll2003.reverse_style(tag_list[i])
+                stand_matrix.append(insert_list)
+        # print stand_matrix
+        return stand_matrix
+
+    @staticmethod
+    def get_ner_BIO(label_list):
+        list_len = len(label_list)
         begin_label = 'B-'
         inside_label = 'I-'
-        chunks = []
-        chunk_type, chunk_start = None, None
-
-        for i, tok in enumerate(label_list):
+        whole_tag = ''
+        index_tag = ''
+        tag_list = []
+        stand_matrix = []
+        for i in range(0, list_len):
+            # wordlabel = word_list[i]
             current_label = label_list[i].upper()
-
             if begin_label in current_label:
-                current_label_tag = current_label.replace(begin_label, "", 1)
-                if chunk_type is None:
-                    chunk_type = current_label_tag
-                    chunk_start = i
+                if index_tag == '':
+                    whole_tag = current_label.replace(begin_label, "", 1) + '[' + str(i)
+                    index_tag = current_label.replace(begin_label, "", 1)
                 else:
-                    chunk = (chunk_type, chunk_start, i)
-                    chunks.append(chunk)
-
-                    chunk_type = current_label_tag
-                    chunk_start = i
+                    tag_list.append(whole_tag + ',' + str(i - 1))
+                    whole_tag = current_label.replace(begin_label, "", 1) + '[' + str(i)
+                    index_tag = current_label.replace(begin_label, "", 1)
 
             elif inside_label in current_label:
-                current_label_tag = current_label.replace(inside_label, "", 1)
-                if current_label_tag != chunk_type:
-                    chunk = (chunk_type, chunk_start, i)
-                    chunks.append(chunk)
+                if current_label.replace(inside_label, "", 1) == index_tag:
+                    whole_tag = whole_tag
+                else:
+                    if (whole_tag != '') & (index_tag != ''):
+                        tag_list.append(whole_tag + ',' + str(i - 1))
+                    whole_tag = ''
+                    index_tag = ''
+            else:
+                if (whole_tag != '') & (index_tag != ''):
+                    tag_list.append(whole_tag + ',' + str(i - 1))
+                whole_tag = ''
+                index_tag = ''
 
-                chunk_type = None
-                chunk_start = None
-            else:  # 'O'
-                if chunk_type is not None and chunk_start is not None:
-                    chunk = (chunk_type, chunk_start, i)
-                    chunks.append(chunk)
+        if (whole_tag != '') & (index_tag != ''):
+            tag_list.append(whole_tag)
+        tag_list_len = len(tag_list)
 
-                chunk_type = None
-                chunk_start = None
-
-        if chunk_type is not None and chunk_start is not None:
-            chunk = (chunk_type, chunk_start, len(label_list))
-            chunks.append(chunk)
-
-        return chunks
+        for i in range(0, tag_list_len):
+            if len(tag_list[i]) > 0:
+                tag_list[i] = tag_list[i] + ']'
+                insert_list = DatasetConll2003.reverse_style(tag_list[i])
+                stand_matrix.append(insert_list)
+        return stand_matrix
 
     def get_chunks(self, seq):
         default_label = 'O'
@@ -224,10 +280,11 @@ if __name__ == '__main__':
     for i, ilen in enumerate(s_lengths):
         w = ds.word_ids2words(s[i], ilen)
         lb = ds.label_ids2labels(y[i], ilen)
-        ch = ds.get_chunks(lb)
+        ch = ds.get_ner_BIOES(lb)
         batch_examples.append((w, lb, ch))
     for a in batch_examples:
         print (a)
+
 
 
 

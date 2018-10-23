@@ -9,7 +9,7 @@ from config import config
 from model import get_model
 from conll2003_batcher import DatasetConll2003
 from train_utils import setup_train_dir, save_model, write_summary, get_param_norm, get_grad_norm
-from metric import evaluate
+from metric_old import evaluate
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -93,18 +93,18 @@ class Processor(object):
 
     def evalute_test_dev(self, summary_writer, epoch, global_step, exp_loss):
         logging.info("Calculating train loss...")
-        _, train_p, train_r, train_f1 = evaluate(self.dataset, self.model, DatasetConll2003.DATA_TYPE_TRAIN,
-                                                 num_samples=1000)
-        logging.info("Epoch %d, Iter %d, Train loss: %f, precision, recall, F1: %f, %f, %f" % (
-            epoch, global_step, exp_loss, train_p, train_r, train_f1))
+        _, train_acc, train_p, train_r, train_f1 = evaluate(self.dataset, self.model,
+                                                            DatasetConll2003.DATA_TYPE_TRAIN, num_samples=1000)
+        logging.info("Epoch %d, Iter %d, Train loss: %f, accuracy, precision, recall, F1: %f, %f, %f, %f" % (
+            epoch, global_step, exp_loss, train_acc, train_p, train_r, train_f1))
         write_summary(train_p, "train/P", summary_writer, global_step)
         write_summary(train_r, "train/r", summary_writer, global_step)
         write_summary(train_f1, "train/F1", summary_writer, global_step)
 
         logging.info("Calculating dev loss...")
-        dev_loss, dev_p, dev_r, dev_f1 = evaluate(self.dataset, self.model, DatasetConll2003.DATA_TYPE_VAL)
-        logging.info("Epoch %d, Iter %d, Dev loss: %f, precision, recall, F1: %f, %f, %f" % (
-            epoch, global_step, dev_loss, dev_p, dev_r, dev_f1))
+        dev_loss, dev_acc, dev_p, dev_r, dev_f1 = evaluate(self.dataset, self.model, DatasetConll2003.DATA_TYPE_VAL)
+        logging.info("Epoch %d, Iter %d, Dev loss: %f, accuracy, precision, recall, F1: %f, %f, %f, %f" % (
+            epoch, global_step, dev_loss, train_acc, dev_p, dev_r, dev_f1))
         write_summary(dev_p, "dev/P", summary_writer, global_step)
         write_summary(dev_r, "dev/r", summary_writer, global_step)
         write_summary(dev_f1, "dev/F1", summary_writer, global_step)
@@ -120,9 +120,7 @@ class Processor(object):
                                                       DatasetConll2003.DATA_TYPE_TEST)
         logging.info("Test loss: %f, precision, recall, F1: %f, %f, %f" % (test_loss, test_p, test_r, test_f1))
 
-
 if __name__ == "__main__":
-
     mode = sys.argv[1]
     model_file_path = None
     if len(sys.argv) > 2:
