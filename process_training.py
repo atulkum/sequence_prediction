@@ -9,7 +9,7 @@ from config import config
 from model import get_model
 from conll2003_batcher import DatasetConll2003
 from train_utils import setup_train_dir, save_model, write_summary, get_param_norm, get_grad_norm
-from metric_old import evaluate
+from metric import evaluate
 import logging
 
 logging.basicConfig(level=logging.INFO)

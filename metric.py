@@ -1,6 +1,8 @@
 import time
 from model import test_one_batch
 
+from conll2003_batcher import DatasetConll2003
+
 class Evaluter(object):
     def __init__(self, dataset):
         self.correct_preds, self.total_correct, self.total_preds = 0., 0., 0.
