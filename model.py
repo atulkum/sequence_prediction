@@ -135,7 +135,7 @@ class NER_CRF(nn.Module):
         max_score_broadcast = max_score.view(1, -1).expand(1, vec.size()[1])
         return max_score + torch.log(torch.sum(torch.exp(vec - max_score_broadcast)))
 
-    def forward_algo(self, emission_prob):
+    def get_log_z(self, emission_prob):
         init_alphas = torch.full((1, self.all_tagset_size), -10000.)
         init_alphas[0][self.start_tag_idx] = 0.
         forward_var = init_alphas
@@ -153,7 +153,7 @@ class NER_CRF(nn.Module):
         alpha = self.log_sum_exp(terminal_var)
         return alpha
 
-    def score_sentence(self, feats, lengths, tags):
+    def get_log_p_y_x(self, feats, lengths, tags):
         score = torch.zeros(1)
         tags = torch.cat([torch.tensor([self.start_tag_idx], dtype=torch.long), tags])
         for i, feat in enumerate(feats):
@@ -163,9 +163,9 @@ class NER_CRF(nn.Module):
 
     def neg_log_likelihood(self, sentence, lengths, tags):
         feats = self.get_emission_prob(sentence, lengths)
-        forward_score = self.forward_alg(feats, lengths)
-        gold_score = self.score_sentence(feats, tags, lengths)
-        return forward_score - gold_score
+        log_z = self.get_log_z(feats, lengths)
+        log_p_y_x = self.get_log_p_y_x(feats, tags, lengths)
+        return -(log_p_y_x - log_z)
 
     def forward(self, sentence, lengths):
         feats = self.get_emission_prob(sentence, lengths)
