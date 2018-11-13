@@ -12,6 +12,12 @@
   - - [ ] Implement WordLSTM + CRF
   - - [ ] Implement CharLSTM + WordLSTM + CRF
 
+### Slot Filling + intent prediciton
+- - [ ] [Attention-Based Recurrent Neural Network Models for Joint Intent Detection and Slot Filling](https://arxiv.org/abs/1609.01454)
+
+### Tree VAE
+- - [ ] [STRUCTVAE: Tree-structured Latent Variable Models for Semi-supervised Semantic Parsing](https://arxiv.org/abs/1806.07832)
+
 ## Requiremet (python 3)
 ```
 conda install pytorch  -c pytorch
