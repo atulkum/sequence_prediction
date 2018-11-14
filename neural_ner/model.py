@@ -38,7 +38,7 @@ class NER_SOFTMAX(nn.Module):
         self.pad_labelid = pad_labelid
         self.reg_lambda = reg_lambda
 
-        self.word_embeds = nn.Embedding.from_pretrained(embd_vector)
+        self.word_embeds = nn.Embedding.from_pretrained(embd_vector, freeze=False)
         embedding_dim = self.word_embeds.embedding_dim
 
         self.lstm = nn.LSTM(embedding_dim, hidden_dim//2,

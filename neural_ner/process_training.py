@@ -29,7 +29,7 @@ class Processor(object):
         optimizer.zero_grad()
         (s, s_lengths), y = batch.word, batch.ner
         logits = self.model(s, s_lengths)
-        loss = self.model.get_loss(logits, y, s_lengths)
+        loss = self.model.neg_log_likelihood(logits, y, s_lengths)
 
         loss.backward()
 
