@@ -1,5 +1,3 @@
--DOCSTART- -X- -X- O
-
 SOCCER NN I-NP O
 - : O O
 JAPAN NNP I-NP I-LOC
@@ -50348,4 +50346,4 @@ brother NN I-NP O
 Bobby NNP I-NP I-PER
 . . O O
 
-
+-DOCSTART- -X- -X- O
