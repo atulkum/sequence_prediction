@@ -1,18 +1,17 @@
+import logging
 import sys
 import time
-import torch
 
+import torch
 from torch.nn.utils import clip_grad_norm_
 from torch.optim import Adam
 
 from config import config
-from model import get_model
-from conll2003_batcher import DatasetConll2003
-from train_utils import setup_train_dir, save_model, write_summary, get_param_norm, get_grad_norm
-from model import test_one_batch
 from metric import Evaluter
-
-import logging
+from model import get_model
+from model import test_one_batch
+from old.conll2003_batcher import DatasetConll2003
+from train_utils import setup_train_dir, save_model, write_summary, get_param_norm, get_grad_norm
 
 logging.basicConfig(level=logging.INFO)
 
@@ -94,18 +93,16 @@ class Processor(object):
                 pre_epoch = epoch
 
     def evalute_test_dev(self, summary_writer, epoch, global_step, exp_loss):
-        logging.info("Calculating train loss...")
         _, train_acc, train_p, train_r, train_f1 = self.evaluate(DatasetConll2003.DATA_TYPE_TRAIN, num_samples=1000)
-        logging.info("Epoch %d, Iter %d, Train loss: %f, accuracy, precision, recall, F1: %f, %f, %f, %f" % (
+        logging.info("Epoch %d, Iter %d, Train loss: %f, (accuracy, precision, recall, F1): %f, %f, %f, %f" % (
             epoch, global_step, exp_loss, train_acc, train_p, train_r, train_f1))
         write_summary(train_p, "train/P", summary_writer, global_step)
         write_summary(train_r, "train/r", summary_writer, global_step)
         write_summary(train_f1, "train/F1", summary_writer, global_step)
 
-        logging.info("Calculating dev loss...")
         dev_loss, dev_acc, dev_p, dev_r, dev_f1 = self.evaluate(DatasetConll2003.DATA_TYPE_VAL)
-        logging.info("Epoch %d, Iter %d, Dev loss: %f, accuracy, precision, recall, F1: %f, %f, %f, %f" % (
-            epoch, global_step, dev_loss, train_acc, dev_p, dev_r, dev_f1))
+        logging.info("Epoch %d, Iter %d, Dev loss: %f, (accuracy, precision, recall, F1): %f, %f, %f, %f" % (
+            epoch, global_step, dev_loss, dev_acc, dev_p, dev_r, dev_f1))
         write_summary(dev_p, "dev/P", summary_writer, global_step)
         write_summary(dev_r, "dev/r", summary_writer, global_step)
         write_summary(dev_f1, "dev/F1", summary_writer, global_step)
@@ -118,7 +115,7 @@ class Processor(object):
     def evaluate_test(self):
         logging.info("Calculating test loss...")
         test_loss, test_acc, test_p, test_r, test_f1 = self.evaluate(DatasetConll2003.DATA_TYPE_TEST)
-        logging.info("Test loss: %f, accuracy, precision, recall, F1: %f, %f, %f, %f" %
+        logging.info("Test loss: %f, (accuracy, precision, recall, F1): %f, %f, %f, %f" %
                      (test_loss, test_acc, test_p, test_r, test_f1))
 
     def evaluate(self, data_type, num_samples=None):
@@ -144,11 +141,11 @@ class Processor(object):
                 break
 
         toc = time.time()
-        print("Computed inference over %i examples in %.2f seconds" % (total_num_examples, toc - tic))
+        logging.info("Computed inference over %i examples in %.2f seconds" % (total_num_examples, toc - tic))
 
         total_loss = loss_per_batch / float(total_num_examples)
         acc, p, r, f1 = ev.get_metric()
-        print(ev.token_cm.as_table())
+        #print(ev.token_cm.as_table())
         return total_loss, acc, p, r, f1
 
 if __name__ == "__main__":

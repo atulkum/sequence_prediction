@@ -1,8 +1,7 @@
-import time
-
-from conll2003_batcher import DatasetConll2003
 from collections import defaultdict, Counter
+
 import numpy as np
+
 
 class ConfusionMatrix(object):
     def __init__(self, labels, default_label):
@@ -87,8 +86,8 @@ class Evaluter(object):
     def __init__(self, dataset):
         self.token_cm = ConfusionMatrix(dataset.get_labels(), dataset.get_default_label())
         self.correct_preds, self.total_correct, self.total_preds = 0., 0., 0.
-        self.right_tag = 0
-        self.all_tag = 0
+        self.right_tag = 0.
+        self.all_tag = 0.
         self.dataset = dataset
 
     def batch_update(self, batch, pred_labelid):
@@ -125,12 +124,12 @@ class Evaluter(object):
         f1 = 2 * precision * recall / (precision + recall) if self.correct_preds > 0 else 0
 
         accuracy = self.right_tag/self.all_tag
-        print("gold_num = ", self.total_correct, " pred_num = ", self.total_preds, " right_num = ", self.correct_preds)
+        #print("gold_num = ", self.total_correct, " pred_num = ", self.total_preds, " right_num = ", self.correct_preds)
         return accuracy, precision, recall, f1
 
 if __name__ == '__main__':
     from config import config
-    from conll2003_batcher import DatasetConll2003
+    from old.conll2003_batcher import DatasetConll2003
     ds = DatasetConll2003(config)
     train_iter = ds.get_train_iterator()
 

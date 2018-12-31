@@ -18,8 +18,7 @@ def test_one_batch(s, s_lengths, model):
 def get_model(dataset, config, use_cuda, model_file_path, is_eval=False):
     embd_vector = dataset.init_emb()
     tagset_size = len(dataset.labels)
-    model = NER_SOFTMAX(embd_vector, config.hidden_dim, tagset_size,
-                        dataset.get_pad_labelid(), config.reg_lambda)
+    model = NER_SOFTMAX(embd_vector,  config, tagset_size, dataset.get_pad_labelid())
 
     if is_eval:
         model = model.eval()
@@ -33,17 +32,18 @@ def get_model(dataset, config, use_cuda, model_file_path, is_eval=False):
     return model
 
 class NER_SOFTMAX(nn.Module):
-    def __init__(self, embd_vector, hidden_dim, tagset_size, pad_labelid, reg_lambda):
+    def __init__(self, embd_vector, config, tagset_size, pad_labelid):
         super(NER_SOFTMAX, self).__init__()
         self.pad_labelid = pad_labelid
-        self.reg_lambda = reg_lambda
+        self.reg_lambda = config.reg_lambda
 
         self.word_embeds = nn.Embedding.from_pretrained(embd_vector, freeze=False)
         embedding_dim = self.word_embeds.embedding_dim
 
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim//2,
+        self.lstm = nn.LSTM(embedding_dim, config.hidden_dim//2,
                             num_layers=1, bidirectional=True, batch_first=True)
-        self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
+        self.dropout = nn.Dropout(config.dropout_rate)
+        self.hidden2tag = nn.Linear(config.hidden_dim, tagset_size)
 
     def forward(self, sentence, lengths):
         embedded = self.word_embeds(sentence)
@@ -64,13 +64,11 @@ class NER_SOFTMAX(nn.Module):
     def neg_log_likelihood(self, logits, y, s_len):
         log_smx = F.log_softmax(logits, dim=2)
         loss = F.nll_loss(log_smx.transpose(1, 2), y, ignore_index=self.pad_labelid, reduction='none')
-        loss = loss.sum(dim=1) / s_len.float()
+        loss = loss.squeeze(1).sum(dim=1) / s_len.float()
         loss = loss.mean()
 
-        # might be reduction='sum' and divide s_lengths
-        l2_reg = sum(p.norm(2) for p in self.parameters() if p.requires_grad)
-
-        loss += self.reg_lambda * l2_reg
+        #l2_reg = sum(p.norm(2) for p in self.parameters() if p.requires_grad)
+        #loss += self.reg_lambda * l2_reg
         return loss
 
     def get_argmax(self, logits):
