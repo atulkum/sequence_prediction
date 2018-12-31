@@ -1,5 +1,3 @@
--DOCSTART- -X- O O
-
 EU NNP I-NP I-ORG
 rejects VBZ I-VP O
 German JJ I-NP I-MISC
@@ -152425,7 +152423,7 @@ coxless NN I-NP O
 pairs NNS I-NP O
 at IN I-PP O
 the DT I-NP O
-Atlanta NNP I-NP B-MISC
+Atlanta NNP I-NP I-MISC
 Games NNPS I-NP I-MISC
 and CC O O
 said VBD I-VP O
@@ -175433,7 +175431,7 @@ The DT I-NP O
 MQM NNP I-NP I-ORG
 speaks VBZ I-VP O
 for IN I-SBAR O
-Urdu-speaking NNP I-VP B-MISC
+Urdu-speaking NNP I-VP I-MISC
 Moslems NNPS I-NP I-MISC
 who WP B-NP O
 migrated VBD I-VP O
@@ -219552,3 +219550,4 @@ Swansea NN I-NP I-ORG
 Lincoln NNP I-NP I-ORG
 2 CD I-NP O
 
+-DOCSTART- -X- O O
