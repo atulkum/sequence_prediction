@@ -1,124 +1,124 @@
 from tqdm import tqdm
 
 import os
-import re
-import codecs
 import numpy as np
 
-from utils import create_freq_map, create_mapping
-from sentence_utils import get_char_word_seq
+from sentence_utils import get_char_word_seq, Constants
+from utils import load_sentences
+from collections import Counter
 
+def create_freq_map(item_list):
+    assert type(item_list) is list
+    freq_map = Counter()
+    for items in item_list:
+        freq_map.update(items)
+    return freq_map
 
 class Vocab(object):
-    _PAD = b"<pad>"
-    _UNK = b"<unk>"
-    _START_VOCAB = [_PAD, _UNK]
-    PAD_ID = 0
-    UNK_ID = 1
+    def __init__(self, config):
+        self.config = config
+        train_sentences = load_sentences(os.path.join(config.data_dir, config.train_file), config.label_type)
+        self.word_mapping(train_sentences)
+        self.tag_mapping(train_sentences)
 
-    def word_mapping(self, sentences, lower, zeros):
+    def word_mapping(self, sentences):
         words = []
         chars = []
         for s in sentences:
             str_words = [w[0] for w in s]
-            word_seq, word_char_seq = get_char_word_seq(str_words, lower, zeros)
+            word_seq, word_char_seq = get_char_word_seq(str_words, self.config.lower, self.config.zeros)
             words.append(word_seq)
 
             chars.append("".join("".join(char_seq) for char_seq in word_char_seq))
 
+        start_vocab_len = len(Constants._START_VOCAB)
         word_freq_map = create_freq_map(words)
-        word_freq_map['<UNK>'] = 10000000
-        word_to_id, id_to_word = create_mapping(word_freq_map)
+        self.config.vocab_size = min(self.config.vocab_size, len(word_freq_map))
+        sorted_items = word_freq_map.most_common(self.config.vocab_size)
+
+        id_to_word = {i + start_vocab_len: v[0] for i, v in enumerate(sorted_items)}
+        for i, v in enumerate(Constants._START_VOCAB):
+            id_to_word[i] = v
+
         print "Found %i unique words (%i in total)" % (
             len(word_freq_map), sum(len(x) for x in words)
         )
-
-        char_freq_map = create_freq_map(chars)
-        char_to_id, id_to_char = create_mapping(char_freq_map)
-        print "Found %i unique characters" % len(char_freq_map)
-
-        self.word_freq_map = word_freq_map
-        self.word_to_id = word_to_id
+        self.word_to_id = {v: k for k, v in id_to_word.items()}
         self.id_to_word = id_to_word
 
-        self.char_freq_map = char_freq_map
-        self.char_to_id = char_to_id
+        char_freq_map = create_freq_map(chars)
+
+        id_to_char = {i+start_vocab_len: v for i, v in enumerate(char_freq_map)}
+        for i, v in enumerate(Constants._START_VOCAB):
+            id_to_char[i] = v
+
+        print "Found %i unique characters" % len(char_freq_map)
+
+        self.char_to_id = {v: k for k, v in id_to_char.items()}
         self.id_to_char = id_to_char
 
     def tag_mapping(self, sentences):
         tags = [[word[-1] for word in s] for s in sentences]
         freq_map = create_freq_map(tags)
-        tag_to_id, id_to_tag = create_mapping(freq_map)
+        id_to_tag = {i: v for i, v in enumerate(freq_map)}
         print "Found %i unique named entity tags" % len(freq_map)
 
-        self.tag_freq_map = freq_map
-        self.tag_to_id = tag_to_id
+        self.tag_to_id = {v: k for k, v in id_to_tag.items()}
         self.id_to_tag = id_to_tag
 
-def augment_with_pretrained(dictionary, ext_emb_path, words):
-    print 'Loading pretrained embeddings from %s...' % ext_emb_path
-    assert os.path.isfile(ext_emb_path)
+    def get_word_embd(self):
+        gemb_matrix, gword_to_id, gid_to_word = Vocab.get_glove(self.config.glove_path, self.config.word_emdb_dim)
 
-    pretrained = set([
-        line.rstrip().split()[0].strip()
-        for line in codecs.open(ext_emb_path, 'r', 'utf-8')
-        if len(ext_emb_path) > 0
-    ])
+        start_vocab_len = len(Constants._START_VOCAB)
+        word_emb_matrix = np.zeros((self.config.vocab_size + start_vocab_len, self.config.word_emdb_dim))
 
-    if words is None:
-        for word in pretrained:
-            if word not in dictionary:
-                dictionary[word] = 0
-    else:
-        for word in words:
-            if any(x in pretrained for x in [
-                word,
-                word.lower(),
-                re.sub('\d', '0', word.lower())
-            ]) and word not in dictionary:
-                dictionary[word] = 0
+        # randomly initialize the special tokens otherwise 0 init
+        if self.config.random_init:
+            word_emb_matrix[:start_vocab_len, :] = np.random.randn(start_vocab_len, self.config.word_emdb_dim)
 
-    word_to_id, id_to_word = create_mapping(dictionary)
-    return dictionary, word_to_id, id_to_word
+        pretrained_init = 0
+        for wid in range(start_vocab_len, len(self.word_to_id)):
+            w = self.id_to_word[wid]
+            if w in gword_to_id:
+                word_emb_matrix[wid, :] = gemb_matrix[gword_to_id[w], :]
+                pretrained_init += 1
+            elif self.config.random_init:
+                word_emb_matrix[wid, :] = np.random.randn(1, self.config.word_emdb_dim)
 
-def get_glove(glove_path, glove_dim):
-    print "Loading GLoVE vectors from file: %s" % glove_path
-    vocab_size = int(4e5)
+        print "Total words %i (%i pretrained initialization)" % (
+            len(self.word_to_id), pretrained_init
+        )
+        return word_emb_matrix
 
-    emb_matrix = np.zeros((vocab_size + len(Vocab._START_VOCAB), glove_dim))
-    word_to_id = {}
-    id_to_word = {}
+    @staticmethod
+    def get_glove(glove_path, glove_dim):
+        print "Loading GLoVE vectors from file: %s" % glove_path
+        vocab_size = int(4e5)
 
-    random_init = True
-    # randomly initialize the special tokens
-    if random_init:
-        emb_matrix[:len(Vocab._START_VOCAB), :] = np.random.randn(len(Vocab._START_VOCAB), glove_dim)
+        emb_matrix = np.zeros((vocab_size, glove_dim))
+        word_to_id = {}
+        id_to_word = {}
 
-    # put start tokens in the dictionaries
-    idx = 0
-    for word in Vocab._START_VOCAB:
-        word_to_id[word] = idx
-        id_to_word[idx] = word
-        idx += 1
+        # put start tokens in the dictionaries
+        idx = 0
+        # go through glove vecs
+        with open(glove_path, 'r') as fh:
+            for line in tqdm(fh, total=vocab_size):
+                line = line.lstrip().rstrip().split(" ")
+                word = line[0]
+                vector = list(map(float, line[1:]))
+                if glove_dim != len(vector):
+                    raise Exception("glove_path=%s embedding_size=%i." % (glove_path, glove_dim))
+                emb_matrix[idx, :] = vector
+                word_to_id[word] = idx
+                id_to_word[idx] = word
+                idx += 1
 
-    # go through glove vecs
-    with open(glove_path, 'r') as fh:
-        for line in tqdm(fh, total=vocab_size):
-            line = line.lstrip().rstrip().split(" ")
-            word = line[0]
-            vector = list(map(float, line[1:]))
-            if glove_dim != len(vector):
-                raise Exception("glove_path=%s embedding_size=%i." % (glove_path, glove_dim))
-            emb_matrix[idx, :] = vector
-            word_to_id[word] = idx
-            id_to_word[idx] = word
-            idx += 1
+        return emb_matrix, word_to_id, id_to_word
 
-    final_vocab_size = vocab_size + len(Vocab._START_VOCAB)
-    assert len(word_to_id) == final_vocab_size
-    assert len(id_to_word) == final_vocab_size
-    assert idx == final_vocab_size
+if __name__ == '__main__':
+    from config import config
+    vocab = Vocab(config)
 
-    return emb_matrix, word_to_id, id_to_word
-
-
+    emb_matrix = vocab.get_word_embd()
+    print len(emb_matrix)

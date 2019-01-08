@@ -25,9 +25,8 @@ class DatasetConll2003(object):
     DATA_TYPE_TEST = 'test'
     DATA_TYPE_VAL = 'val'
 
-    def __init__(self, config, is_cuda=False):
+    def __init__(self, config):
         self.batch_size = config.batch_size
-        self.is_cuda = is_cuda
         self.num_special_toks = 2 #for '<pad>' and '<unk>'
         self.label_type = config.label_type
 

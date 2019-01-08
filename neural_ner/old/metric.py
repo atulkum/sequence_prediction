@@ -83,12 +83,12 @@ class ConfusionMatrix(object):
 
 
 class Evaluter(object):
-    def __init__(self, dataset):
-        self.token_cm = ConfusionMatrix(dataset.get_labels(), dataset.get_default_label())
+    def __init__(self, vocab):
+        self.token_cm = ConfusionMatrix(vocab.tag_to_id.keys(), 'O')
         self.correct_preds, self.total_correct, self.total_preds = 0., 0., 0.
         self.right_tag = 0.
         self.all_tag = 0.
-        self.dataset = dataset
+        self.vocab = vocab
 
     def batch_update(self, batch, pred_labelid):
         (_, s_lengths), y = batch.word, batch.ner
@@ -129,11 +129,14 @@ class Evaluter(object):
 
 if __name__ == '__main__':
     from config import config
-    from old.conll2003_batcher import DatasetConll2003
-    ds = DatasetConll2003(config)
-    train_iter = ds.get_train_iterator()
+    from data_utils.batcher import DatasetConll2003
+    from data_utils.vocab import Vocab
+    vocab = Vocab(config)
+    train_iter = DatasetConll2003(config.test_file, config, vocab, False)
 
-    ev = Evaluter(ds)
+    vocab = Vocab(config)
+
+    ev = Evaluter(vocab)
 
     batch = next(iter(train_iter))
     (s, s_lengths), y = batch.word, batch.ner

@@ -3,14 +3,20 @@ import time
 import os
 import tensorflow as tf
 import json
+import numpy as np
+import codecs
+
+from data_utils.tag_scheme_utils import iobes_iob
 
 def setup_train_dir(config):
+    eval_dir = os.path.join(config.log_root, 'eval')
+    if not os.path.exists(eval_dir):
+        os.makedirs(eval_dir)
+
     train_dir = os.path.join(config.log_root, 'train_%d' % (int(time.time())))
     if not os.path.exists(train_dir):
         os.mkdir(train_dir)
-    model_dir = os.path.join(train_dir, 'model')
-    if not os.path.exists(model_dir):
-        os.mkdir(model_dir)
+
     bestmodel_dir = os.path.join(train_dir, 'bestmodel')
     if not os.path.exists(bestmodel_dir):
         os.makedirs(bestmodel_dir)
@@ -20,7 +26,7 @@ def setup_train_dir(config):
     with open(os.path.join(train_dir, "flags.json"), 'w') as fout:
         json.dump(vars(config), fout)
 
-    return train_dir, model_dir, bestmodel_dir, summary_writer
+    return train_dir, summary_writer
 
 def get_param_norm(parameters, norm_type=2):
     total_norm = 0
@@ -57,5 +63,70 @@ def write_summary(value, tag, summary_writer, global_step):
     summary = tf.Summary()
     summary.value.add(tag=tag, simple_value=value)
     summary_writer.add_summary(summary, global_step)
+
+class Evaluter(object):
+    def __init__(self, vocab, label_type):
+        self.vocab = vocab
+        self.n_tags = len(self.vocab.id_to_tag)
+        self.predictions = []
+        self.count = np.zeros((self.n_tags, self.n_tags), dtype=np.int32)
+        self.label_type = label_type
+
+    def batch_update(self, batch, pred):
+        s_lengths = batch['words_lens']
+        y = batch['tags']
+        raw_sentence = batch['raw_sentence']
+        y_reals = y.data.numpy()
+        y_preds = pred.data.numpy()
+        for i, s_len in enumerate(s_lengths):
+            r_tags = []
+            p_tags = []
+            for j in range(s_len):
+                r_tags.append(self.vocab.id_to_tag[y_reals[i][j]])
+                p_tags.append(self.vocab.id_to_tag[y_preds[i][j]])
+                self.count[y_reals[i][j], y_preds[i][j]] += 1
+
+            if self.label_type == 'IOBES':
+                p_tags = iobes_iob(p_tags)
+                r_tags = iobes_iob(r_tags)
+            for j in range(s_len):
+                new_line = " ".join([raw_sentence[i][j], r_tags[j], p_tags[j]])
+                self.predictions.append(new_line)
+            self.predictions.append("")
+
+    def get_metric(self, log_dir):
+        # Write predictions to disk and run CoNLL script externally
+        eval_id = np.random.randint(1000000, 2000000)
+        output_path = os.path.join(log_dir, "eval.%i.output" % eval_id)
+        scores_path = os.path.join(log_dir , "eval.%i.scores" % eval_id)
+        with codecs.open(output_path, 'w', 'utf8') as f:
+            f.write("\n".join(self.predictions))
+        eval_script = '../conlleval.pl'
+        os.system("%s < %s > %s" % (eval_script, output_path, scores_path))
+
+        # CoNLL evaluation results
+        eval_lines = [l.rstrip() for l in codecs.open(scores_path, 'r', 'utf8')]
+        for line in eval_lines:
+            print line
+
+        # Confusion matrix with accuracy for each tag
+        print ("{: >2}{: >7}{: >7}%s{: >9}" % ("{: >7}" * self.n_tags)).format(
+            "ID", "NE", "Total",
+            *([self.vocab.id_to_tag[i] for i in xrange(self.n_tags)] + ["Percent"])
+        )
+        for i in xrange(self.n_tags):
+            print ("{: >2}{: >7}{: >7}%s{: >9}" % ("{: >7}" * self.n_tags)).format(
+                str(i), self.vocab.id_to_tag[i], str(self.count[i].sum()),
+                *([self.count[i][j] for j in xrange(self.n_tags)] +
+                  ["%.3f" % (self.count[i][i] * 100. / max(1, self.count[i].sum()))])
+            )
+
+        # Global accuracy
+        print "%i/%i (%.5f%%)" % (
+            self.count.trace(), self.count.sum(), 100. * self.count.trace() / max(1, self.count.sum())
+        )
+
+        # F1 on all entities
+        return float(eval_lines[1].strip().split()[-1])
 
 

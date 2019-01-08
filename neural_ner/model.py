@@ -4,25 +4,23 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-
+from data_utils.sentence_utils import Constants
 import logging
 
 logging.basicConfig(level=logging.INFO)
 
-def test_one_batch(s, s_lengths, model):
+def test_one_batch(batch, model):
     model.eval()
-    logits = model(s, s_lengths)
+    logits = model(batch)
     _, pred = model.get_argmax(logits)
     return logits, pred
 
-def get_model(dataset, config, use_cuda, model_file_path, is_eval=False):
-    embd_vector = dataset.init_emb()
-    tagset_size = len(dataset.labels)
-    model = NER_SOFTMAX(embd_vector,  config, tagset_size, dataset.get_pad_labelid())
+def get_model(vocab, config, model_file_path, is_eval=False):
+    model = NER_SOFTMAX_CHAR(vocab,  config)
 
     if is_eval:
         model = model.eval()
-    if use_cuda:
+    if config.is_cuda:
         model = model.cuda()
 
     if model_file_path is not None:
@@ -31,24 +29,62 @@ def get_model(dataset, config, use_cuda, model_file_path, is_eval=False):
 
     return model
 
-class NER_SOFTMAX(nn.Module):
-    def __init__(self, embd_vector, config, tagset_size, pad_labelid):
-        super(NER_SOFTMAX, self).__init__()
-        self.pad_labelid = pad_labelid
-        self.reg_lambda = config.reg_lambda
+class NER_SOFTMAX_CHAR(nn.Module):
+    def __init__(self, vocab, config):
+        super(NER_SOFTMAX_CHAR, self).__init__()
+
+        embd_vector = torch.from_numpy(vocab.get_word_embd()).float()
+        tagset_size = len(vocab.id_to_tag)
 
         self.word_embeds = nn.Embedding.from_pretrained(embd_vector, freeze=False)
-        embedding_dim = self.word_embeds.embedding_dim
+        self.char_embeds = nn.Embedding(len(vocab.char_to_id), config.char_embd_dim)
 
-        self.lstm = nn.LSTM(embedding_dim, config.hidden_dim//2,
+        self.lstm_char = nn.LSTM(self.char_embeds.embedding_dim,
+                            config.char_lstm_dim,
                             num_layers=1, bidirectional=True, batch_first=True)
-        self.dropout = nn.Dropout(config.dropout_rate)
-        self.hidden2tag = nn.Linear(config.hidden_dim, tagset_size)
 
-    def forward(self, sentence, lengths):
-        embedded = self.word_embeds(sentence)
+        self.lstm = nn.LSTM(self.word_embeds.embedding_dim + config.char_embd_dim * 2,
+                            config.word_lstm_dim,
+                            num_layers=1, bidirectional=True, batch_first=True)
+
+        self.dropout = nn.Dropout(config.dropout_rate)
+        self.hidden_layer = nn.Linear(config.word_lstm_dim * 2, config.word_lstm_dim)
+        self.tanh_layer = torch.nn.Tanh()
+        self.hidden2tag = nn.Linear(config.word_lstm_dim, tagset_size)
+
+        self.config = config
+
+    def forward(self, batch):
+        sentence = batch['words']
+        lengths = batch['words_lens']
+        char_emb = []
+        word_embed = self.word_embeds(sentence)
+        for chars, char_len in batch['chars']:
+            seq_embed = self.char_embeds(chars)
+            seq_lengths, sort_idx = torch.sort(char_len, descending=True)
+            _, unsort_idx = torch.sort(sort_idx)
+            seq_embed = seq_embed[sort_idx]
+
+            packed = pack_padded_sequence(seq_embed, seq_lengths, batch_first=True)
+            output, hidden = self.lstm_char(packed)
+            lstm_feats, _ = pad_packed_sequence(output, batch_first=True)
+            lstm_feats = lstm_feats.contiguous()
+            b, t_k, d = list(lstm_feats.size())
+
+            seq_rep = lstm_feats.view(b, t_k, 2, -1) #0 is fwd and 1 is bwd
+
+            last_idx = char_len - 1
+            seq_rep_fwd = seq_rep[unsort_idx, 0, 0]
+            seq_rep_bwd = seq_rep[unsort_idx, last_idx, 1]
+
+            seq_out = torch.cat([seq_rep_fwd, seq_rep_bwd], 1)
+            char_emb.append(seq_out.unsqueeze(0))
+        char_emb = torch.cat(char_emb, 0) #b x n x c_dim
+        word_embed = torch.cat([char_emb, word_embed], 2)
+        word_embed = self.dropout(word_embed)
+
         lengths = lengths.view(-1).tolist()
-        packed = pack_padded_sequence(embedded, lengths, batch_first=True)
+        packed = pack_padded_sequence(word_embed, lengths, batch_first=True)
         output, hidden = self.lstm(packed)
 
         lstm_feats, _ = pad_packed_sequence(output, batch_first=True)  # h dim = B x t_k x n
@@ -56,19 +92,21 @@ class NER_SOFTMAX(nn.Module):
 
         b, t_k, d = list(lstm_feats.size())
 
-        logits = self.hidden2tag(lstm_feats.view(-1, d))
+        h = self.hidden_layer(lstm_feats.view(-1, d))
+        h = self.tanh_layer(h)
+        logits = self.hidden2tag(h)
         logits = logits.view(b, t_k, -1)
 
         return logits
 
     def neg_log_likelihood(self, logits, y, s_len):
         log_smx = F.log_softmax(logits, dim=2)
-        loss = F.nll_loss(log_smx.transpose(1, 2), y, ignore_index=self.pad_labelid, reduction='none')
+        loss = F.nll_loss(log_smx.transpose(1, 2), y, ignore_index=Constants.TAG_PAD_ID, reduction='none')
         loss = loss.squeeze(1).sum(dim=1) / s_len.float()
         loss = loss.mean()
-
-        #l2_reg = sum(p.norm(2) for p in self.parameters() if p.requires_grad)
-        #loss += self.reg_lambda * l2_reg
+        if self.config.is_l2_loss:
+            l2_reg = sum(p.norm(2) for p in self.parameters() if p.requires_grad)
+            loss += self.config.reg_lambda * l2_reg
         return loss
 
     def get_argmax(self, logits):
@@ -76,10 +114,9 @@ class NER_SOFTMAX(nn.Module):
         return max_value, max_idx
 
 class NER_CRF(nn.Module):
-    def __init__(self, embd_vector, hidden_dim, tagset_size, pad_labelid,
+    def __init__(self, embd_vector, hidden_dim, tagset_size,
                  reg_lambda):
         super(NER_CRF, self).__init__()
-        self.pad_labelid = pad_labelid
         self.reg_lambda = reg_lambda
         self.start_tag_idx = tagset_size
         self.stop_tag_idx = tagset_size + 1
