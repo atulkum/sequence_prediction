@@ -34,7 +34,7 @@ config.char_embd_dim = 25
 config.char_lstm_dim = 25
 config.word_emdb_dim = 100
 config.word_lstm_dim = 100
-config.caps_embd_dim = 6
+config.caps_embd_dim = 3
 
 config.glove_path = os.path.join(root_dir, 'neural_ner/.vector_cache/glove.6B.100d.txt')
 

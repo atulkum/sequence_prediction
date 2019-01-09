@@ -9,6 +9,8 @@ class Constants(object):
     PAD_ID = 1
     TAG_PAD_ID = -1
 
+    MAX_CAPS_FEATURE=4
+
 def pad_items(items, is_tag=False):
     padded_items = []
     padded_items_len = [len(item) for item in items]
@@ -42,11 +44,11 @@ def zero_digits(s):
 
 def cap_feature(s):
     if s.lower() == s:
-        return 2
+        return Constants.MAX_CAPS_FEATURE - 2
     elif s.upper() == s:
-        return 3
+        return Constants.MAX_CAPS_FEATURE - 1
     elif s[0].upper() == s[0]:
-        return 4
+        return Constants.MAX_CAPS_FEATURE
     else:
         return Constants.UNK_ID
 

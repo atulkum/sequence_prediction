@@ -21,6 +21,9 @@ class Vocab(object):
         self.word_mapping(train_sentences)
         self.tag_mapping(train_sentences)
 
+    def get_caps_cardinality(self):
+        return Constants.MAX_CAPS_FEATURE + 1
+
     def word_mapping(self, sentences):
         words = []
         chars = []
@@ -70,11 +73,11 @@ class Vocab(object):
         gemb_matrix, gword_to_id, gid_to_word = Vocab.get_glove(self.config.glove_path, self.config.word_emdb_dim)
 
         start_vocab_len = len(Constants._START_VOCAB)
-        word_emb_matrix = np.zeros((self.config.vocab_size + start_vocab_len, self.config.word_emdb_dim))
+        word_emb_matrix = np.random.uniform(low=-1.0, high=1.0, size=(self.config.vocab_size + start_vocab_len, self.config.word_emdb_dim)) #np.zeros((self.config.vocab_size + start_vocab_len, self.config.word_emdb_dim))
 
         # randomly initialize the special tokens otherwise 0 init
-        if self.config.random_init:
-            word_emb_matrix[:start_vocab_len, :] = np.random.randn(start_vocab_len, self.config.word_emdb_dim)
+        #if self.config.random_init:
+        #    word_emb_matrix[:start_vocab_len, :] = np.random.uniform(low=-1.0, high=1.0, size=(start_vocab_len, self.config.word_emdb_dim)) #np.random.randn(start_vocab_len, self.config.word_emdb_dim)
 
         pretrained_init = 0
         for wid in range(start_vocab_len, len(self.word_to_id)):
@@ -82,8 +85,8 @@ class Vocab(object):
             if w in gword_to_id:
                 word_emb_matrix[wid, :] = gemb_matrix[gword_to_id[w], :]
                 pretrained_init += 1
-            elif self.config.random_init:
-                word_emb_matrix[wid, :] = np.random.randn(1, self.config.word_emdb_dim)
+            #elif self.config.random_init:
+            #    word_emb_matrix[wid, :] = np.random.uniform(low=-1.0, high=1.0, size=(1, self.config.word_emdb_dim)) #np.random.randn(1, self.config.word_emdb_dim)
 
         print "Total words %i (%i pretrained initialization)" % (
             len(self.word_to_id), pretrained_init

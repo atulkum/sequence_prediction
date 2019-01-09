@@ -6,8 +6,37 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from data_utils.sentence_utils import Constants
 import logging
+import numpy as np
 
 logging.basicConfig(level=logging.INFO)
+
+np.random.seed(123)
+torch.manual_seed(123)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(123)
+
+def init_lstm_wt(lstm):
+    for names in lstm._all_weights:
+        for name in names:
+            if name.startswith('weight_'):
+                wt = getattr(lstm, name)
+                drange = np.sqrt(6. / (np.sum(wt.size())))
+                wt.data.uniform_(-drange, drange)
+
+            elif name.startswith('bias_'):
+                # set forget bias to 1
+                bias = getattr(lstm, name)
+                n = bias.size(0)
+                start, end = n // 4, n // 2
+                bias.data.fill_(0.)
+                bias.data[start:end].fill_(1.)
+
+def init_linear_wt(linear):
+    drange = np.sqrt(6. / (np.sum(linear.weight.size())))
+    linear.weight.data.uniform_(-drange, drange)
+
+    if linear.bias is not None:
+        linear.bias.data.fill_(0.)
 
 def test_one_batch(batch, model):
     model.eval()
@@ -37,13 +66,14 @@ class NER_SOFTMAX_CHAR(nn.Module):
         tagset_size = len(vocab.id_to_tag)
 
         self.word_embeds = nn.Embedding.from_pretrained(embd_vector, freeze=False)
-        self.char_embeds = nn.Embedding(len(vocab.char_to_id), config.char_embd_dim)
+        self.char_embeds = nn.Embedding(len(vocab.char_to_id), config.char_embd_dim, padding_idx=Constants.PAD_ID)
+        self.caps_embeds = nn.Embedding(vocab.get_caps_cardinality(), config.caps_embd_dim, padding_idx=Constants.PAD_ID)
 
         self.lstm_char = nn.LSTM(self.char_embeds.embedding_dim,
                             config.char_lstm_dim,
                             num_layers=1, bidirectional=True, batch_first=True)
 
-        self.lstm = nn.LSTM(self.word_embeds.embedding_dim + config.char_embd_dim * 2,
+        self.lstm = nn.LSTM(self.word_embeds.embedding_dim + config.char_embd_dim * 2 + config.caps_embd_dim,
                             config.word_lstm_dim,
                             num_layers=1, bidirectional=True, batch_first=True)
 
@@ -54,9 +84,18 @@ class NER_SOFTMAX_CHAR(nn.Module):
 
         self.config = config
 
+        init_lstm_wt(self.lstm_char)
+        init_lstm_wt(self.lstm)
+        init_linear_wt(self.hidden_layer)
+        init_linear_wt(self.hidden2tag)
+        self.char_embeds.weight.data.uniform_(-1., 1.)
+        self.caps_embeds.weight.data.uniform_(-1., 1.)
+
     def forward(self, batch):
         sentence = batch['words']
         lengths = batch['words_lens']
+        caps = batch['caps']
+
         char_emb = []
         word_embed = self.word_embeds(sentence)
         for chars, char_len in batch['chars']:
@@ -80,7 +119,10 @@ class NER_SOFTMAX_CHAR(nn.Module):
             seq_out = torch.cat([seq_rep_fwd, seq_rep_bwd], 1)
             char_emb.append(seq_out.unsqueeze(0))
         char_emb = torch.cat(char_emb, 0) #b x n x c_dim
-        word_embed = torch.cat([char_emb, word_embed], 2)
+
+        caps_embd = self.caps_embeds(caps)
+
+        word_embed = torch.cat([char_emb, word_embed, caps_embd], 2)
         word_embed = self.dropout(word_embed)
 
         lengths = lengths.view(-1).tolist()
@@ -117,7 +159,7 @@ class NER_CRF(nn.Module):
     def __init__(self, embd_vector, hidden_dim, tagset_size,
                  reg_lambda):
         super(NER_CRF, self).__init__()
-        self.reg_lambda = reg_lambda
+
         self.start_tag_idx = tagset_size
         self.stop_tag_idx = tagset_size + 1
         self.all_tagset_size = tagset_size + 2
@@ -132,6 +174,7 @@ class NER_CRF(nn.Module):
         #transition from y_i-1 to y_i, T[y_i, y_j] = y_i <= y_j
         #+2 added for start and end indices
         self.transitions = nn.Parameter(torch.randn(self.all_tagset_size, self.all_tagset_size))
+        nn.init.uniform_(self.transitions, -0.1, 0.1)
 
         #no transition to start_tag, not transition from end tag
         self.transitions.data[self.start_tag_idx, :] = -10000
@@ -238,3 +281,4 @@ class NER_CRF(nn.Module):
         assert start == self.start_tag_idx
         best_path.reverse()
         return path_score, best_path
+

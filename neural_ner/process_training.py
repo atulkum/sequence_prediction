@@ -49,6 +49,7 @@ class Processor(object):
 
         params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
         optimizer = Adam(params, lr=self.config.lr, amsgrad=True)
+        #optimizer = SGD(params, lr=self.config.lr)
 
         num_params = sum(p.numel() for p in params)
         logging.info("Number of params: %d" % num_params)
