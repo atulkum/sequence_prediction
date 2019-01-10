@@ -76,8 +76,8 @@ class Evaluter(object):
         s_lengths = batch['words_lens']
         y = batch['tags']
         raw_sentence = batch['raw_sentence']
-        y_reals = y.data.numpy()
-        y_preds = pred.data.numpy()
+        y_reals = y.cpu().data.numpy()
+        y_preds = pred.cpu().data.numpy()
         for i, s_len in enumerate(s_lengths):
             r_tags = []
             p_tags = []
@@ -94,7 +94,7 @@ class Evaluter(object):
                 self.predictions.append(new_line)
             self.predictions.append("")
 
-    def get_metric(self, log_dir):
+    def get_metric(self, log_dir, is_cf=False):
         # Write predictions to disk and run CoNLL script externally
         eval_id = np.random.randint(1000000, 2000000)
         output_path = os.path.join(log_dir, "eval.%i.output" % eval_id)
@@ -106,25 +106,26 @@ class Evaluter(object):
 
         # CoNLL evaluation results
         eval_lines = [l.rstrip() for l in codecs.open(scores_path, 'r', 'utf8')]
-        for line in eval_lines:
-            print line
+        if is_cf:
+            for line in eval_lines:
+                print line
 
-        # Confusion matrix with accuracy for each tag
-        print ("{: >2}{: >7}{: >7}%s{: >9}" % ("{: >7}" * self.n_tags)).format(
-            "ID", "NE", "Total",
-            *([self.vocab.id_to_tag[i] for i in xrange(self.n_tags)] + ["Percent"])
-        )
-        for i in xrange(self.n_tags):
+            # Confusion matrix with accuracy for each tag
             print ("{: >2}{: >7}{: >7}%s{: >9}" % ("{: >7}" * self.n_tags)).format(
-                str(i), self.vocab.id_to_tag[i], str(self.count[i].sum()),
-                *([self.count[i][j] for j in xrange(self.n_tags)] +
-                  ["%.3f" % (self.count[i][i] * 100. / max(1, self.count[i].sum()))])
+                "ID", "NE", "Total",
+                *([self.vocab.id_to_tag[i] for i in xrange(self.n_tags)] + ["Percent"])
+            )
+            for i in xrange(self.n_tags):
+                print ("{: >2}{: >7}{: >7}%s{: >9}" % ("{: >7}" * self.n_tags)).format(
+                    str(i), self.vocab.id_to_tag[i], str(self.count[i].sum()),
+                    *([self.count[i][j] for j in xrange(self.n_tags)] +
+                      ["%.3f" % (self.count[i][i] * 100. / max(1, self.count[i].sum()))])
             )
 
-        # Global accuracy
-        print "%i/%i (%.5f%%)" % (
-            self.count.trace(), self.count.sum(), 100. * self.count.trace() / max(1, self.count.sum())
-        )
+            # Global accuracy
+            print "%i/%i (%.5f%%)" % (
+                self.count.trace(), self.count.sum(), 100. * self.count.trace() / max(1, self.count.sum())
+            )
 
         # F1 on all entities
         return float(eval_lines[1].strip().split()[-1])
