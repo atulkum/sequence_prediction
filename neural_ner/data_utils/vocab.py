@@ -1,6 +1,8 @@
 from tqdm import tqdm
 
 import os
+import codecs
+import re
 import numpy as np
 
 from sentence_utils import get_char_word_seq, Constants
@@ -36,16 +38,26 @@ class Vocab(object):
 
         start_vocab_len = len(Constants._START_VOCAB)
         word_freq_map = create_freq_map(words)
-        self.config.vocab_size = min(self.config.vocab_size, len(word_freq_map))
-        sorted_items = word_freq_map.most_common(self.config.vocab_size)
-
-        id_to_word = {i + start_vocab_len: v[0] for i, v in enumerate(sorted_items)}
-        for i, v in enumerate(Constants._START_VOCAB):
-            id_to_word[i] = v
-
+        self.orig_word_freq_map = word_freq_map.copy()
         print "Found %i unique words (%i in total)" % (
             len(word_freq_map), sum(len(x) for x in words)
         )
+        '''
+        self.config.vocab_size = min(self.config.vocab_size, len(word_freq_map))
+        sorted_items = word_freq_map.most_common(self.config.vocab_size)
+        id_to_word = {i + start_vocab_len: v[0] for i, v in enumerate(sorted_items)}
+        '''
+        #augmnet with pretrained words
+        self.glove_vectors = self.get_glove()
+        word_freq_map.update(self.glove_vectors.keys())
+
+        id_to_word = {}
+        for i, v in enumerate(Constants._START_VOCAB):
+            id_to_word[i] = v
+
+        for v in word_freq_map:
+            id_to_word[len(id_to_word)] = v
+
         self.word_to_id = {v: k for k, v in id_to_word.items()}
         self.id_to_word = id_to_word
 
@@ -69,59 +81,28 @@ class Vocab(object):
         self.tag_to_id = {v: k for k, v in id_to_tag.items()}
         self.id_to_tag = id_to_tag
 
-    def get_word_embd(self):
-        gemb_matrix, gword_to_id, gid_to_word = Vocab.get_glove(self.config.glove_path, self.config.word_emdb_dim)
-
-        start_vocab_len = len(Constants._START_VOCAB)
-        word_emb_matrix = np.random.uniform(low=-1.0, high=1.0, size=(self.config.vocab_size + start_vocab_len, self.config.word_emdb_dim)) #np.zeros((self.config.vocab_size + start_vocab_len, self.config.word_emdb_dim))
-
-        # randomly initialize the special tokens otherwise 0 init
-        #if self.config.random_init:
-        #    word_emb_matrix[:start_vocab_len, :] = np.random.uniform(low=-1.0, high=1.0, size=(start_vocab_len, self.config.word_emdb_dim)) #np.random.randn(start_vocab_len, self.config.word_emdb_dim)
-
-        pretrained_init = 0
-        for wid in range(start_vocab_len, len(self.word_to_id)):
-            w = self.id_to_word[wid]
-            if w in gword_to_id:
-                word_emb_matrix[wid, :] = gemb_matrix[gword_to_id[w], :]
-                pretrained_init += 1
-            #elif self.config.random_init:
-            #    word_emb_matrix[wid, :] = np.random.uniform(low=-1.0, high=1.0, size=(1, self.config.word_emdb_dim)) #np.random.randn(1, self.config.word_emdb_dim)
-
-        print "Total words %i (%i pretrained initialization)" % (
-            len(self.word_to_id), pretrained_init
-        )
-        return word_emb_matrix
-
-    @staticmethod
-    def get_glove(glove_path, glove_dim):
-        print "Loading GLoVE vectors from file: %s" % glove_path
+    def get_glove(self):
+        print "Loading GLoVE vectors from file: %s" % self.config.glove_path
         vocab_size = int(4e5)
+        word_to_vector = {}
 
-        emb_matrix = np.zeros((vocab_size, glove_dim))
-        word_to_id = {}
-        id_to_word = {}
-
-        # put start tokens in the dictionaries
-        idx = 0
         # go through glove vecs
-        with open(glove_path, 'r') as fh:
+        with codecs.open(self.config.glove_path, 'r', 'utf-8') as fh:
             for line in tqdm(fh, total=vocab_size):
-                line = line.lstrip().rstrip().split(" ")
+                line = re.split('\s+', line.strip())
                 word = line[0]
                 vector = list(map(float, line[1:]))
-                if glove_dim != len(vector):
-                    raise Exception("glove_path=%s embedding_size=%i." % (glove_path, glove_dim))
-                emb_matrix[idx, :] = vector
-                word_to_id[word] = idx
-                id_to_word[idx] = word
-                idx += 1
+                if self.config.word_emdb_dim != len(vector):
+                    raise Exception("glove_path=%s embedding_size=%i." %
+                                    (self.config.glove_path, self.config.word_emdb_dim))
 
-        return emb_matrix, word_to_id, id_to_word
+                word_to_vector[word] = vector
+
+        return word_to_vector
 
 if __name__ == '__main__':
     from config import config
     vocab = Vocab(config)
-
-    emb_matrix = vocab.get_word_embd()
-    print len(emb_matrix)
+    print len(vocab.word_to_id)
+    #emb_matrix = vocab.get_word_embd()
+    #print len(emb_matrix)

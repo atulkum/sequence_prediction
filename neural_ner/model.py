@@ -8,6 +8,8 @@ from data_utils.sentence_utils import Constants
 import logging
 import numpy as np
 
+print('pytorch version', torch.__version__)
+
 logging.basicConfig(level=logging.INFO)
 
 np.random.seed(123)
@@ -38,6 +40,21 @@ def init_linear_wt(linear):
     if linear.bias is not None:
         linear.bias.data.fill_(0.)
 
+def get_word_embd(vocab, config):
+    word_to_vector = vocab.glove_vectors
+    word_emb_matrix = np.random.uniform(low=-1.0, high=1.0,
+                                        size=(len(vocab.word_to_id), config.word_emdb_dim))
+    pretrained_init = 0
+    for w, wid in vocab.word_to_id.iteritems():
+        if w in word_to_vector:
+            word_emb_matrix[wid, :] = word_to_vector[w]
+            pretrained_init += 1
+
+    "Total words %i (%i pretrained initialization)" % (
+        len(vocab.word_to_id), pretrained_init
+    )
+    return word_emb_matrix
+
 def test_one_batch(batch, model):
     model.eval()
     logits = model(batch)
@@ -61,8 +78,8 @@ def get_model(vocab, config, model_file_path, is_eval=False):
 class NER_SOFTMAX_CHAR(nn.Module):
     def __init__(self, vocab, config):
         super(NER_SOFTMAX_CHAR, self).__init__()
-
-        embd_vector = torch.from_numpy(vocab.get_word_embd()).float()
+        word_emb_matrix = get_word_embd(vocab, config)
+        embd_vector = torch.from_numpy(word_emb_matrix).float()
         tagset_size = len(vocab.id_to_tag)
 
         self.word_embeds = nn.Embedding.from_pretrained(embd_vector, freeze=False)
@@ -143,7 +160,7 @@ class NER_SOFTMAX_CHAR(nn.Module):
 
     def neg_log_likelihood(self, logits, y, s_len):
         log_smx = F.log_softmax(logits, dim=2)
-        loss = F.nll_loss(log_smx.transpose(1, 2), y, ignore_index=Constants.TAG_PAD_ID, reduction='none')
+        loss = F.nll_loss(log_smx.transpose(1, 2), y, ignore_index=Constants.TAG_PAD_ID, reduce=False)
         loss = loss.squeeze(1).sum(dim=1) / s_len.float()
         loss = loss.mean()
         if self.config.is_l2_loss:
