@@ -48,8 +48,10 @@ class Processor(object):
         train_dir, summary_writer = setup_train_dir(self.config)
 
         params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
-        optimizer = Adam(params, lr=self.config.lr, amsgrad=True)
-        #optimizer = SGD(params, lr=self.config.lr)
+        if self.config.optimizer == 'adam':
+            optimizer = Adam(params, lr=0.001, amsgrad=True)
+        elif self.config.optimizer == 'sdg':
+            optimizer = SGD(params, lr=0.01)
 
         num_params = sum(p.numel() for p in params)
         logging.info("Number of params: %d" % num_params)
