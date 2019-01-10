@@ -20,9 +20,6 @@ torch.manual_seed(1)
 class Processor(object):
     def __init__(self, config, model_file_path):
         self.config = config
-
-        if torch.cuda.is_available():
-            self.config.is_cuda = True
         self.vocab = Vocab(config)
         self.model = get_model(self.vocab, config, model_file_path)
 
