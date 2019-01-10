@@ -155,6 +155,7 @@ class Processor(object):
 
 if __name__ == "__main__":
     from config import config
+    config.gpu = config.gpu and torch.cuda.is_available()
     mode = sys.argv[1]
     model_file_path = None
     if len(sys.argv) > 2:
