@@ -43,5 +43,3 @@ config.vocab_size = int(4e5)
 config.is_cuda = False
 
 config.is_l2_loss = False
-
-config.optimizer='sdg' #'adam'

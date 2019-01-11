@@ -9,8 +9,7 @@ from torch.optim import Adam, SGD
 
 from data_utils.batcher import DatasetConll2003
 from data_utils.vocab import Vocab
-from model import get_model
-from model import test_one_batch
+from model import get_model, test_one_batch
 from train_utils import setup_train_dir, save_model, write_summary, \
     get_param_norm, get_grad_norm, Evaluter
 
@@ -29,7 +28,7 @@ class Processor(object):
         s_lengths = batch['words_lens']
         y = batch['tags']
         logits = self.model(batch)
-        loss = self.model.neg_log_likelihood(logits, y, s_lengths)
+        loss = self.model.get_loss(logits, y, s_lengths)
 
         loss.backward()
 
@@ -45,10 +44,7 @@ class Processor(object):
         train_dir, summary_writer = setup_train_dir(self.config)
 
         params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
-        if self.config.optimizer == 'adam':
-            optimizer = Adam(params, lr=0.001, amsgrad=True)
-        elif self.config.optimizer == 'sdg':
-            optimizer = SGD(params, lr=0.01)
+        optimizer = Adam(params, lr=0.001, amsgrad=True)
 
         num_params = sum(p.numel() for p in params)
         logging.info("Number of params: %d" % num_params)
@@ -131,7 +127,7 @@ class Processor(object):
             y = batch['tags']
 
             logits, pred = test_one_batch(batch, self.model)
-            loss = self.model.neg_log_likelihood(logits, y, s_lengths)
+            loss = self.model.get_loss(logits, y, s_lengths)
 
             curr_batch_size = len(batch['raw_sentence'])
             loss_per_batch += loss * curr_batch_size
