@@ -1,6 +1,6 @@
 import codecs
-from sentence_utils import prepare_sentence
-from tag_scheme_utils import update_tag_scheme
+from .sentence_utils import prepare_sentence
+from .tag_scheme_utils import update_tag_scheme
 
 def load_sentences(path, tag_scheme):
     sentences = []

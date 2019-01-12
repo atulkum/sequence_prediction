@@ -5,8 +5,8 @@ import codecs
 import re
 import numpy as np
 
-from sentence_utils import get_char_word_seq, Constants
-from utils import load_sentences
+from .sentence_utils import get_char_word_seq, Constants
+from .utils import load_sentences
 from collections import Counter
 
 def create_freq_map(item_list):
@@ -39,9 +39,9 @@ class Vocab(object):
         start_vocab_len = len(Constants._START_VOCAB)
         word_freq_map = create_freq_map(words)
         self.orig_word_freq_map = word_freq_map.copy()
-        print "Found %i unique words (%i in total)" % (
+        print ("Found {} unique words ({} in total)".format(
             len(word_freq_map), sum(len(x) for x in words)
-        )
+        ))
         '''
         self.config.vocab_size = min(self.config.vocab_size, len(word_freq_map))
         sorted_items = word_freq_map.most_common(self.config.vocab_size)
@@ -67,7 +67,7 @@ class Vocab(object):
         for i, v in enumerate(Constants._START_VOCAB):
             id_to_char[i] = v
 
-        print "Found %i unique characters" % len(char_freq_map)
+        print("Found {} unique characters".format(len(char_freq_map)))
 
         self.char_to_id = {v: k for k, v in id_to_char.items()}
         self.id_to_char = id_to_char
@@ -76,13 +76,13 @@ class Vocab(object):
         tags = [[word[-1] for word in s] for s in sentences]
         freq_map = create_freq_map(tags)
         id_to_tag = {i: v for i, v in enumerate(freq_map)}
-        print "Found %i unique named entity tags" % len(freq_map)
+        print ("Found {} unique named entity tags" .format(len(freq_map)))
 
         self.tag_to_id = {v: k for k, v in id_to_tag.items()}
         self.id_to_tag = id_to_tag
 
     def get_glove(self):
-        print "Loading GLoVE vectors from file: %s" % self.config.glove_path
+        print ("Loading GLoVE vectors from file: {}".format(self.config.glove_path))
         vocab_size = int(4e5)
         word_to_vector = {}
 
@@ -103,6 +103,6 @@ class Vocab(object):
 if __name__ == '__main__':
     from config import config
     vocab = Vocab(config)
-    print len(vocab.word_to_id)
+    print (len(vocab.word_to_id))
     #emb_matrix = vocab.get_word_embd()
     #print len(emb_matrix)

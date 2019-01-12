@@ -32,7 +32,7 @@ def pad_chars(items, max_word_len):
     for item in items:
         padding = [pad_id] * (max_length - len(item))
         padded_items.append(item + padding)
-    for i in xrange(len(items), max_word_len):
+    for i in range(len(items), max_word_len):
         padding = [pad_id] * max_length
         padded_items.append(padding)
         padded_items_len.append(1)

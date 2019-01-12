@@ -47,7 +47,7 @@ def get_word_embd(vocab, config):
     word_emb_matrix = np.random.uniform(low=-1.0, high=1.0,
                                         size=(len(vocab.word_to_id), config.word_emdb_dim))
     pretrained_init = 0
-    for w, wid in vocab.word_to_id.iteritems():
+    for w, wid in vocab.word_to_id.items():
         if w in word_to_vector:
             word_emb_matrix[wid, :] = word_to_vector[w]
             pretrained_init += 1
@@ -65,7 +65,7 @@ def test_one_batch(batch, model):
     return logits, pred
 
 def get_model(vocab, config, model_file_path, is_eval=False):
-    model = NER_SOFTMAX_CHAR(vocab,  config)
+    model = NER_SOFTMAX_CHAR_CRF(vocab,  config)
 
     if is_eval:
         model = model.eval()
@@ -188,19 +188,20 @@ class NER_SOFTMAX_CHAR_CRF(nn.Module):
 
         self.featurizer = NER_SOFTMAX_CHAR(vocab, config)
         self.crf = CRF_Loss(len(vocab.id_to_tag))
+        self.config = config
 
     def forward(self, batch):
         emissions = self.featurizer(batch)
         return emissions
 
-    def crf_loss(self, emissions, target, s_lens):
-        loss = -1 * self.crf(emissions, target)
-        loss = loss.squeeze(1).sum(dim=1) / s_lens.float()
+    def crf_loss(self, emissions, target):
+        a = self.crf(emissions, target)
+        loss = -1 * a
         loss = loss.mean()
         return loss
 
     def get_loss(self, logits, y, s_lens):
-        loss = self.crf_loss(logits, y, s_lens)
+        loss = self.crf_loss(logits, y)
         if self.config.is_l2_loss:
             loss += self.get_l2_loss()
         return loss

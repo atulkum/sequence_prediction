@@ -3,7 +3,7 @@ from __future__ import unicode_literals, print_function, division
 import torch
 import torch.nn as nn
 from data_utils.sentence_utils import Constants
-
+import numpy as np
 
 def get_mask(lengths):
     seq_lens = lengths.view(-1, 1)
@@ -16,40 +16,35 @@ def get_mask(lengths):
 class CRF_Loss(nn.Module):
     def __init__(self, tagset_size):
         super(CRF_Loss, self).__init__()
-        self.start_tag_idx = tagset_size
-        self.stop_tag_idx = tagset_size + 1
+        self.start_tag = tagset_size
+        self.end_tag = tagset_size + 1
         self.num_tags = tagset_size + 2
 
-        #transition from y_i-1 to y_i, T[y_i, y_j] = y_i <= y_j
-        #+2 added for start and end indices
         self.transitions = nn.Parameter(torch.Tensor(self.num_tags, self.num_tags))
-        nn.init.uniform_(self.transitions, -0.1, 0.1)
+        nn.init.constant_(self.transitions, -np.log(self.num_tags))
 
-        #no transition to start_tag, not transition from end tag
-        self.transitions.data[self.start_tag_idx, :] = -10000
-        self.transitions.data[:, self.stop_tag_idx] = -10000
+        self.transitions.data[self.end_tag, :] = -10000
+        self.transitions.data[:, self.start_tag] = -10000
 
     def get_log_p_z(self, emissions, mask, seq_len):
         log_alpha = emissions[:, 0].clone()
-        log_alpha += self.transitions[self.start_tag_idx, : self.start_tag_idx].unsqueeze(0)
+        log_alpha += self.transitions[self.start_tag, : self.start_tag].unsqueeze(0)
 
         for idx in range(1, seq_len):
             broadcast_emissions = emissions[:, idx].unsqueeze(1)
-            broadcast_transitions = self.transitions[
-                : self.start_tag, : self.start_tag
-            ].unsqueeze(0)
+            broadcast_transitions = self.transitions[ : self.start_tag, : self.start_tag].unsqueeze(0)
             broadcast_logprob = log_alpha.unsqueeze(2)
             score = broadcast_logprob + broadcast_emissions + broadcast_transitions
 
             score = torch.logsumexp(score, 1)
-            log_alpha = score * mask[:, idx].unsqueeze(1) + log_alpha.squeeze(1) * (
-                1.0 - mask[:, idx].unsqueeze(1)
-            )
+            log_alpha = score * mask[:, idx].unsqueeze(1) + log_alpha.squeeze(1) * (1.0 - mask[:, idx].unsqueeze(1))
 
-            log_alpha += self.transitions[: self.start_tag, self.end_tag].unsqueeze(0)
+        log_alpha += self.transitions[: self.start_tag, self.end_tag].unsqueeze(0)
         return torch.logsumexp(log_alpha.squeeze(1), 1)
 
     def get_log_p_Y_X(self, emissions, mask, seq_len, tags):
+        tags[tags < 0] = 0 # clone and then set
+
         llh = self.transitions[self.start_tag, tags[:, 0]].unsqueeze(1)
         llh += emissions[:, 0, :].gather(1, tags[:, 0].view(-1, 1)) * mask[:, 0].unsqueeze(1)
 
@@ -79,9 +74,6 @@ class CRF_Loss(nn.Module):
     def forward(self, emissions, tags):
         return self.log_likelihood(emissions, tags)
 
-    def inference(self, emissions, lengths):
-        return self.viterbi_decode(emissions, lengths)
-
     def viterbi_decode(self, emissions, lengths):
         mask = get_mask(lengths)
         seq_len = emissions.shape[1]
@@ -89,10 +81,7 @@ class CRF_Loss(nn.Module):
         log_prob = emissions[:, 0].clone()
         log_prob += self.transitions[self.start_tag, : self.start_tag].unsqueeze(0)
 
-
-        end_scores = log_prob + self.transitions[
-            : self.start_tag, self.end_tag
-        ].unsqueeze(0)
+        end_scores = log_prob + self.transitions[: self.start_tag, self.end_tag].unsqueeze(0)
 
         best_scores_list = []
         best_scores_list.append(end_scores.unsqueeze(1))
@@ -101,20 +90,12 @@ class CRF_Loss(nn.Module):
 
         for idx in range(1, seq_len):
             broadcast_emissions = emissions[:, idx].unsqueeze(1)
-            broadcast_transmissions = self.transitions[
-                                      : self.start_tag, : self.start_tag
-                                      ].unsqueeze(0)
+            broadcast_transmissions = self.transitions[: self.start_tag, : self.start_tag].unsqueeze(0)
             broadcast_log_prob = log_prob.unsqueeze(2)
-
             score = broadcast_emissions + broadcast_transmissions + broadcast_log_prob
-
             max_scores, max_score_indices = torch.max(score, 1)
-
             best_paths_list.append(max_score_indices.unsqueeze(1))
-
-            end_scores = max_scores + self.transitions[
-                                      : self.start_tag, self.end_tag
-                                      ].unsqueeze(0)
+            end_scores = max_scores + self.transitions[: self.start_tag, self.end_tag].unsqueeze(0)
 
             best_scores_list.append(end_scores.unsqueeze(1))
             log_prob = max_scores
@@ -128,48 +109,25 @@ class CRF_Loss(nn.Module):
         padding_tensor = torch.tensor(Constants.PAD_ID).long()
 
         labels = max_indices_from_scores[:, seq_len - 1]
-        labels = self._mask_tensor(labels, 1.0 - mask[:, seq_len - 1], padding_tensor)
-
+        labels = torch.where(1.0 - mask[:, seq_len - 1], padding_tensor, labels)
         all_labels = labels.unsqueeze(1).long()
 
         for idx in range(seq_len - 2, -1, -1):
             indices_for_lookup = all_labels[:, -1].clone()
-            indices_for_lookup = torch.where(
-                indices_for_lookup == self.ignore_index,
-                valid_index_tensor,
-                indices_for_lookup
-            )
+            indices_for_lookup = torch.where(indices_for_lookup == self.ignore_index, valid_index_tensor,
+                                             indices_for_lookup)
 
-            indices_from_prev_pos = (
-                best_paths[:, idx, :]
-                    .gather(1, indices_for_lookup.view(-1, 1).long())
-                    .squeeze(1)
-            )
-            indices_from_prev_pos = torch.where(
-                (1.0 - mask[:, idx + 1]),
-                padding_tensor,
-                indices_from_prev_pos
-            )
+            indices_from_prev_pos = best_paths[:, idx, :].gather(1, indices_for_lookup.view(-1, 1).long()).squeeze(1)
+            indices_from_prev_pos = torch.where((1.0 - mask[:, idx + 1]), padding_tensor, indices_from_prev_pos)
 
             indices_from_max_scores = max_indices_from_scores[:, idx]
-            indices_from_max_scores = torch.where(
-                mask[:, idx + 1],
-                padding_tensor,
-                indices_from_max_scores
-            )
+            indices_from_max_scores = torch.where(mask[:, idx + 1], padding_tensor, indices_from_max_scores)
 
-            labels = torch.where(
-                indices_from_max_scores == self.ignore_index,
-                indices_from_prev_pos,
-                indices_from_max_scores,
-            )
+            labels = torch.where(indices_from_max_scores == self.ignore_index, indices_from_prev_pos,
+                                 indices_from_max_scores)
 
             # Set to ignore_index if present state is not valid.
-            labels = torch.where(
-                (1 - mask[:, idx]),
-                padding_tensor,
-                labels
-            )
+            labels = torch.where((1 - mask[:, idx]),padding_tensor, labels)
             all_labels = torch.cat((all_labels, labels.view(-1, 1).long()), 1)
 
         return best_scores, torch.flip(all_labels, [1])

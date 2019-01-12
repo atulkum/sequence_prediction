@@ -2,9 +2,9 @@
 
 import os
 import numpy as np
-from utils import load_sentences, prepare_dataset
-from vocab import Vocab
-from sentence_utils import pad_items, pad_chars
+from .utils import load_sentences, prepare_dataset
+from .vocab import Vocab
+from .sentence_utils import pad_items, pad_chars
 import torch
 
 class DatasetConll2003(object):
@@ -39,7 +39,7 @@ class DatasetConll2003(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         self.iterations += 1
 
         if self.is_train and self.i >= len(self.data):
