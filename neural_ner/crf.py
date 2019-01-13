@@ -42,8 +42,9 @@ class CRF_Loss(nn.Module):
         log_alpha += self.transitions[: self.start_tag, self.end_tag].unsqueeze(0)
         return torch.logsumexp(log_alpha.squeeze(1), 1)
 
-    def get_log_p_Y_X(self, emissions, mask, seq_len, tags):
-        tags[tags < 0] = 0 # clone and then set
+    def get_log_p_Y_X(self, emissions, mask, seq_len, orig_tags):
+        tags = orig_tags.clone()
+        tags[tags < 0] = 0
 
         llh = self.transitions[self.start_tag, tags[:, 0]].unsqueeze(1)
         llh += emissions[:, 0, :].gather(1, tags[:, 0].view(-1, 1)) * mask[:, 0].unsqueeze(1)
@@ -106,28 +107,28 @@ class CRF_Loss(nn.Module):
         _, max_indices_from_scores = torch.max(best_scores, 2)
 
         valid_index_tensor = torch.tensor(0).long()
-        padding_tensor = torch.tensor(Constants.PAD_ID).long()
+        padding_tensor = torch.tensor(Constants.TAG_PAD_ID).long()
 
         labels = max_indices_from_scores[:, seq_len - 1]
-        labels = torch.where(1.0 - mask[:, seq_len - 1], padding_tensor, labels)
+        labels = torch.where(mask[:, seq_len - 1] != 1.0, padding_tensor, labels)
         all_labels = labels.unsqueeze(1).long()
 
         for idx in range(seq_len - 2, -1, -1):
             indices_for_lookup = all_labels[:, -1].clone()
-            indices_for_lookup = torch.where(indices_for_lookup == self.ignore_index, valid_index_tensor,
+            indices_for_lookup = torch.where(indices_for_lookup == Constants.TAG_PAD_ID, valid_index_tensor,
                                              indices_for_lookup)
 
             indices_from_prev_pos = best_paths[:, idx, :].gather(1, indices_for_lookup.view(-1, 1).long()).squeeze(1)
-            indices_from_prev_pos = torch.where((1.0 - mask[:, idx + 1]), padding_tensor, indices_from_prev_pos)
+            indices_from_prev_pos = torch.where(mask[:, idx + 1] != 1.0, padding_tensor, indices_from_prev_pos)
 
             indices_from_max_scores = max_indices_from_scores[:, idx]
-            indices_from_max_scores = torch.where(mask[:, idx + 1], padding_tensor, indices_from_max_scores)
+            indices_from_max_scores = torch.where(mask[:, idx + 1] == 1.0, padding_tensor, indices_from_max_scores)
 
-            labels = torch.where(indices_from_max_scores == self.ignore_index, indices_from_prev_pos,
+            labels = torch.where(indices_from_max_scores == Constants.TAG_PAD_ID, indices_from_prev_pos,
                                  indices_from_max_scores)
 
             # Set to ignore_index if present state is not valid.
-            labels = torch.where((1 - mask[:, idx]),padding_tensor, labels)
+            labels = torch.where(mask[:, idx] != 1.0, padding_tensor, labels)
             all_labels = torch.cat((all_labels, labels.view(-1, 1).long()), 1)
 
         return best_scores, torch.flip(all_labels, [1])

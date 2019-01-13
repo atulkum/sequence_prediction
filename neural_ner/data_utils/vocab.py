@@ -61,11 +61,14 @@ class Vocab(object):
         self.word_to_id = {v: k for k, v in id_to_word.items()}
         self.id_to_word = id_to_word
 
-        char_freq_map = create_freq_map(chars)
-
-        id_to_char = {i+start_vocab_len: v for i, v in enumerate(char_freq_map)}
+        id_to_char = {}
         for i, v in enumerate(Constants._START_VOCAB):
             id_to_char[i] = v
+
+        char_freq_map = create_freq_map(chars)
+
+        for v in char_freq_map:
+            id_to_char[len(id_to_char)] = v
 
         print("Found {} unique characters".format(len(char_freq_map)))
 
