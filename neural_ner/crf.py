@@ -5,16 +5,9 @@ import torch.nn as nn
 from data_utils.sentence_utils import Constants
 import numpy as np
 
-def get_mask(lengths):
-    seq_lens = lengths.view(-1, 1)
-    max_len = torch.max(seq_lens)
-    range_tensor = torch.arange(max_len).unsqueeze(0)
-    range_tensor = range_tensor.expand(seq_lens.size(0), range_tensor.size(1))
-    mask = (range_tensor < seq_lens).float()
-    return mask
 
 class CRF_Loss(nn.Module):
-    def __init__(self, tagset_size):
+    def __init__(self, tagset_size, config):
         super(CRF_Loss, self).__init__()
         self.start_tag = tagset_size
         self.end_tag = tagset_size + 1
@@ -25,6 +18,7 @@ class CRF_Loss(nn.Module):
 
         self.transitions.data[self.end_tag, :] = -10000
         self.transitions.data[:, self.start_tag] = -10000
+        self.config = config
 
     def get_log_p_z(self, emissions, mask, seq_len):
         log_alpha = emissions[:, 0].clone()
@@ -76,7 +70,7 @@ class CRF_Loss(nn.Module):
         return self.log_likelihood(emissions, tags)
 
     def viterbi_decode(self, emissions, lengths):
-        mask = get_mask(lengths)
+        mask = self.get_mask(lengths)
         seq_len = emissions.shape[1]
 
         log_prob = emissions[:, 0].clone()
@@ -87,7 +81,10 @@ class CRF_Loss(nn.Module):
         best_scores_list = []
         best_scores_list.append(end_scores.unsqueeze(1))
 
-        best_paths_list = [torch.Tensor().long()]
+        best_paths_0 = torch.Tensor().long()
+        if self.config.is_cuda:
+            best_paths_0 = best_paths_0.cuda()
+        best_paths_list = [best_paths_0]
 
         for idx in range(1, seq_len):
             broadcast_emissions = emissions[:, idx].unsqueeze(1)
@@ -108,6 +105,10 @@ class CRF_Loss(nn.Module):
 
         valid_index_tensor = torch.tensor(0).long()
         padding_tensor = torch.tensor(Constants.TAG_PAD_ID).long()
+        
+        if self.config.is_cuda:
+            valid_index_tensor = valid_index_tensor.cuda()
+            padding_tensor = padding_tensor.cuda()
 
         labels = max_indices_from_scores[:, seq_len - 1]
         labels = torch.where(mask[:, seq_len - 1] != 1.0, padding_tensor, labels)
@@ -133,3 +134,12 @@ class CRF_Loss(nn.Module):
 
         return best_scores, torch.flip(all_labels, [1])
 
+    def get_mask(self, lengths):
+        seq_lens = lengths.view(-1, 1)
+        max_len = torch.max(seq_lens)
+        range_tensor = torch.arange(max_len).unsqueeze(0)
+        range_tensor = range_tensor.expand(seq_lens.size(0), range_tensor.size(1))
+        if self.config.is_cuda:
+            range_tensor = range_tensor.cuda()
+        mask = (range_tensor < seq_lens).float()
+        return mask

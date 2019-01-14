@@ -187,7 +187,7 @@ class NER_SOFTMAX_CHAR_CRF(nn.Module):
         super(NER_SOFTMAX_CHAR_CRF, self).__init__()
 
         self.featurizer = NER_SOFTMAX_CHAR(vocab, config)
-        self.crf = CRF_Loss(len(vocab.id_to_tag))
+        self.crf = CRF_Loss(len(vocab.id_to_tag), config)
         self.config = config
 
     def forward(self, batch):
