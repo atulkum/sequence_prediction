@@ -44,7 +44,7 @@ class Processor(object):
         train_dir, summary_writer = setup_train_dir(self.config)
 
         params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
-        optimizer = Adam(params, lr=0.001, amsgrad=True)
+        optimizer = Adam(params, amsgrad=True)
 
         num_params = sum(p.numel() for p in params)
         logging.info("Number of params: %d" % num_params)
@@ -73,7 +73,7 @@ class Processor(object):
                 logging.info(
                     'epoch %d, iter %d, loss %.5f, smoothed loss %.5f, grad norm %.5f, param norm %.5f, batch time %.3f' %
                     (epoch, global_step, train_loss, exp_loss, grad_norm, param_norm, iter_time))
-
+                
             if pre_epoch < epoch:
                 epoch_toc = time.time()
                 logging.info("End of epoch %i. Time for epoch: %f" % (epoch, epoch_toc - epoch_tic))
