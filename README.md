@@ -14,10 +14,10 @@
 
 ### Slot Filling + intent prediciton
 - - [ ] [Attention-Based Recurrent Neural Network Models for Joint Intent Detection and Slot Filling](https://arxiv.org/abs/1609.01454)
-  - - [x] Make a CoNLL-2003 batcher
-  - - [x] Implement trainer
-  - - [x] Implement slot filler
-  - - [x] Implement intent
+  - - [ ] Make a ATIS batcher
+  - - [ ] Implement trainer
+  - - [ ] Implement slot filler
+  - - [ ] Implement intent
   
 ### Tree VAE
 - - [ ] [STRUCTVAE: Tree-structured Latent Variable Models for Semi-supervised Semantic Parsing](https://arxiv.org/abs/1806.07832)
