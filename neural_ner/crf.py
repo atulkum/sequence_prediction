@@ -5,7 +5,6 @@ import torch.nn as nn
 from data_utils.sentence_utils import Constants
 import numpy as np
 
-
 class CRF_Loss(nn.Module):
     def __init__(self, tagset_size, config):
         super(CRF_Loss, self).__init__()
@@ -20,7 +19,8 @@ class CRF_Loss(nn.Module):
         self.transitions.data[:, self.start_tag] = -10000
         self.config = config
 
-    def get_log_p_z(self, emissions, mask, seq_len):
+    def get_log_p_z(self, emissions, mask):
+        seq_len = emissions.shape[1]
         log_alpha = emissions[:, 0].clone()
         log_alpha += self.transitions[self.start_tag, : self.start_tag].unsqueeze(0)
 
@@ -36,7 +36,8 @@ class CRF_Loss(nn.Module):
         log_alpha += self.transitions[: self.start_tag, self.end_tag].unsqueeze(0)
         return torch.logsumexp(log_alpha.squeeze(1), 1)
 
-    def get_log_p_Y_X(self, emissions, mask, seq_len, orig_tags):
+    def get_log_p_Y_X(self, emissions, mask, orig_tags):
+        seq_len = emissions.shape[1]
         tags = orig_tags.clone()
         tags[tags < 0] = 0
 
@@ -61,16 +62,11 @@ class CRF_Loss(nn.Module):
 
     def log_likelihood(self, emissions, tags):
         mask = tags.ne(Constants.TAG_PAD_ID).float()
-        seq_len = emissions.shape[1]
-        log_z = self.get_log_p_z(emissions, mask, seq_len)
-        log_p_y_x = self.get_log_p_Y_X(emissions, mask, seq_len, tags)
+        log_z = self.get_log_p_z(emissions, mask)
+        log_p_y_x = self.get_log_p_Y_X(emissions, mask, tags)
         return log_p_y_x - log_z
 
-    def forward(self, emissions, tags):
-        return self.log_likelihood(emissions, tags)
-
-    def viterbi_decode(self, emissions, lengths):
-        mask = self.get_mask(lengths)
+    def viterbi_decode(self, emissions, mask):
         seq_len = emissions.shape[1]
 
         log_prob = emissions[:, 0].clone()
@@ -101,7 +97,7 @@ class CRF_Loss(nn.Module):
         best_scores = torch.cat(best_scores_list, 1).float()
         best_paths = torch.cat(best_paths_list, 1)
 
-        _, max_indices_from_scores = torch.max(best_scores, 2)
+        max_scores, max_indices_from_scores = torch.max(best_scores, 2)
 
         valid_index_tensor = torch.tensor(0).long()
         padding_tensor = torch.tensor(Constants.TAG_PAD_ID).long()
@@ -132,14 +128,18 @@ class CRF_Loss(nn.Module):
             labels = torch.where(mask[:, idx] != 1.0, padding_tensor, labels)
             all_labels = torch.cat((all_labels, labels.view(-1, 1).long()), 1)
 
-        return best_scores, torch.flip(all_labels, [1])
+        last_tag_indices = mask.sum(1, dtype=torch.long) - 1
+        sentence_score = max_scores.gather(1, last_tag_indices.view(-1, 1)).squeeze(1)
 
-    def get_mask(self, lengths):
-        seq_lens = lengths.view(-1, 1)
-        max_len = torch.max(seq_lens)
-        range_tensor = torch.arange(max_len).unsqueeze(0)
-        range_tensor = range_tensor.expand(seq_lens.size(0), range_tensor.size(1))
-        if self.config.is_cuda:
-            range_tensor = range_tensor.cuda()
-        mask = (range_tensor < seq_lens).float()
-        return mask
+        return sentence_score, torch.flip(all_labels, [1])
+
+    def structural_perceptron_loss(self, emissions, tags):
+        mask = tags.ne(Constants.TAG_PAD_ID).float()
+
+        best_scores, pred = self.viterbi_decode(emissions, mask)
+        log_p_y_x = self.get_log_p_Y_X(emissions, mask, tags)
+
+        delta = torch.sum(tags.ne(pred).float()*mask, 1)
+
+        margin_loss = torch.clamp(best_scores + delta - log_p_y_x, min=0.0)
+        return margin_loss

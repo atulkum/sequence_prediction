@@ -9,7 +9,7 @@ from torch.optim import Adam, SGD
 
 from data_utils.batcher import DatasetConll2003
 from data_utils.vocab import Vocab
-from model import get_model, test_one_batch
+from model import get_model
 from train_utils import setup_train_dir, save_model, write_summary, \
     get_param_norm, get_grad_norm, Evaluter
 
@@ -21,6 +21,13 @@ class Processor(object):
         self.config = config
         self.vocab = Vocab(config)
         self.model = get_model(self.vocab, config, model_file_path)
+
+    def test_one_batch(self, batch):
+        self.model.eval()
+        logits = self.model(batch)
+        lengths = batch['words_lens']
+        pred = self.model.predict(logits, lengths)
+        return logits, pred
 
     def train_one_batch(self, batch, optimizer, params):
         self.model.train()
@@ -126,7 +133,7 @@ class Processor(object):
             s_lengths = batch['words_lens']
             y = batch['tags']
 
-            logits, pred = test_one_batch(batch, self.model)
+            logits, pred = self.test_one_batch(batch)
             loss = self.model.get_loss(logits, y, s_lengths)
 
             curr_batch_size = len(batch['raw_sentence'])
