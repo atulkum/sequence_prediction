@@ -1,5 +1,11 @@
 import os
 import torch
+import numpy as np
+
+np.random.seed(123)
+torch.manual_seed(123)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(123)
 
 class Config(object):
     pass
@@ -18,7 +24,7 @@ config.lr = 0.001
 config.dropout_ratio = 0.5
 
 config.max_grad_norm = 5.0
-config.batch_size = 32
+config.batch_size = 1
 config.num_epochs = 100
 
 config.print_every = 100
@@ -45,4 +51,9 @@ config.is_cuda = True
 
 config.is_l2_loss = False
 
+config.model_name = 'model.NER_SOFTMAX_CHAR'
+config.optimizer = 'sgd'
+
+# config postprocess
 config.is_cuda = config.is_cuda and torch.cuda.is_available()
+

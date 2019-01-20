@@ -1,7 +1,44 @@
-from __future__ import unicode_literals, print_function, division
-
 import torch
 import numpy as np
+import importlib
+import logging
+from torch.optim import Adam, SGD
+
+logging.basicConfig(level=logging.INFO)
+
+def get_model(vocab, config, model_file_path, is_eval=False):
+    class_path = config.model_name.split('.')
+    class_name = class_path[-1]
+    class_module = '.'.join(class_path[:-1])
+
+    ModelClass = getattr(importlib.import_module(class_module), class_name)
+
+    model = ModelClass(vocab, config)
+
+    if is_eval:
+        model = model.eval()
+    if config.is_cuda:
+        model = model.cuda()
+
+    if model_file_path is not None:
+        state = torch.load(model_file_path, map_location=lambda storage, location: storage)
+        model.load_state_dict(state['model'], strict=False)
+
+    return model
+
+def get_optimizer(model, config):
+    params = list(filter(lambda p: p.requires_grad, model.parameters()))
+
+    optimizer = None
+    if config.optimizer == 'adam':
+        optimizer = Adam(params, amsgrad=True)
+    elif config.optimizer == 'sgd':
+        optimizer = SGD(params, lr=0.01, momentum=0.9)
+
+    num_params = sum(p.numel() for p in params)
+    logging.info("Number of params: %d" % num_params)
+
+    return optimizer, params
 
 def get_mask(lengths, config):
     seq_lens = lengths.view(-1, 1)

@@ -15,26 +15,6 @@ print('pytorch version', torch.__version__)
 
 logging.basicConfig(level=logging.INFO)
 
-np.random.seed(123)
-torch.manual_seed(123)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(123)
-
-def get_model(vocab, config, model_file_path, is_eval=False):
-    #model = NER_SOFTMAX_CHAR_CRF(vocab, config)
-    model = NER_SOFTMAX_CHAR(vocab, config)
-
-    if is_eval:
-        model = model.eval()
-    if config.is_cuda:
-        model = model.cuda()
-
-    if model_file_path is not None:
-        state = torch.load(model_file_path, map_location=lambda storage, location: storage)
-        model.load_state_dict(state['model'], strict=False)
-
-    return model
-
 class NER_SOFTMAX_CHAR(nn.Module):
     def __init__(self, vocab, config):
         super(NER_SOFTMAX_CHAR, self).__init__()

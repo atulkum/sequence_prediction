@@ -5,11 +5,10 @@ import time
 
 import torch
 from torch.nn.utils import clip_grad_norm_
-from torch.optim import Adam, SGD
 
 from data_utils.batcher import DatasetConll2003
 from data_utils.vocab import Vocab
-from model import get_model
+from model_utils import get_model, get_optimizer
 from train_utils import setup_train_dir, save_model, write_summary, \
     get_param_norm, get_grad_norm, Evaluter
 
@@ -49,12 +48,7 @@ class Processor(object):
 
     def train(self):
         train_dir, summary_writer = setup_train_dir(self.config)
-
-        params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
-        optimizer = Adam(params, amsgrad=True)
-
-        num_params = sum(p.numel() for p in params)
-        logging.info("Number of params: %d" % num_params)
+        optimizer, params = get_optimizer(self.model, self.config)
 
         exp_loss, best_dev_f1 = None, None
 
