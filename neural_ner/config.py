@@ -53,8 +53,8 @@ config.is_cuda = True
 
 config.is_l2_loss = False
 
-config.model_name = 'model.NER_SOFTMAX_CHAR'
-config.optimizer = 'sgd'
+config.model_name = 'model.NER_SOFTMAX_CHAR_CRF'
+config.optimizer = 'sgd_mom'
 
 config.use_pretrain_embd = True
 

@@ -130,8 +130,8 @@ class NER_SOFTMAX_CHAR_CRF(nn.Module):
         return emissions
 
     def get_loss(self, logits, y, s_lens):
-        #loss = -1 * self.crf.log_likelihood(logits, y)
-        loss = self.crf.structural_perceptron_loss(logits, y)
+        loss = -1 * self.crf.log_likelihood(logits, y)
+        #loss = self.crf.structural_perceptron_loss(logits, y)
         loss = loss / s_lens.float()
         loss = loss.mean()
         if self.config.is_l2_loss:
