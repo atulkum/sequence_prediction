@@ -2,9 +2,9 @@
 
 import os
 import numpy as np
-from .utils import load_sentences, prepare_dataset
-from .vocab import Vocab
-from .sentence_utils import pad_items, pad_chars
+from data_utils.utils import load_sentences, prepare_dataset
+from data_utils.vocab import Vocab
+from data_utils.sentence_utils import pad_items, pad_chars
 import torch
 
 class DatasetConll2003(object):

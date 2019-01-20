@@ -21,7 +21,8 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed_all(123)
 
 def get_model(vocab, config, model_file_path, is_eval=False):
-    model = NER_SOFTMAX_CHAR_CRF(vocab, config)
+    #model = NER_SOFTMAX_CHAR_CRF(vocab, config)
+    model = NER_SOFTMAX_CHAR(vocab, config)
 
     if is_eval:
         model = model.eval()
@@ -120,7 +121,7 @@ class NER_SOFTMAX_CHAR(nn.Module):
     def neg_log_likelihood(self, logits, y, s_lens):
         log_smx = F.log_softmax(logits, dim=2)
         loss = F.nll_loss(log_smx.transpose(1, 2), y, ignore_index=Constants.TAG_PAD_ID, reduction='none')
-        loss = loss.squeeze(1).sum(dim=1) / s_lens.float()
+        loss = loss.sum(dim=1) / s_lens.float()
         loss = loss.mean()
         return loss
 

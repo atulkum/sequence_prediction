@@ -1,4 +1,5 @@
 import os
+import torch
 
 class Config(object):
     pass
@@ -43,3 +44,5 @@ config.vocab_size = int(4e5)
 config.is_cuda = True
 
 config.is_l2_loss = False
+
+config.is_cuda = config.is_cuda and torch.cuda.is_available()

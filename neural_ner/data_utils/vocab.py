@@ -3,10 +3,9 @@ from tqdm import tqdm
 import os
 import codecs
 import re
-import numpy as np
 
-from .sentence_utils import get_char_word_seq, Constants
-from .utils import load_sentences
+from data_utils.sentence_utils import get_char_word_seq, Constants
+from data_utils.utils import load_sentences
 from collections import Counter
 
 def create_freq_map(item_list):
