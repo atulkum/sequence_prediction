@@ -11,8 +11,6 @@ import numpy as np
 from crf import CRF_Loss
 from model_utils import get_mask, init_lstm_wt, init_linear_wt, get_word_embd
 
-print('pytorch version', torch.__version__)
-
 logging.basicConfig(level=logging.INFO)
 
 class NER_SOFTMAX_CHAR(nn.Module):

@@ -2,6 +2,8 @@ import os
 import torch
 import numpy as np
 
+print('pytorch version', torch.__version__)
+
 np.random.seed(123)
 torch.manual_seed(123)
 if torch.cuda.is_available():
@@ -53,6 +55,8 @@ config.is_l2_loss = False
 
 config.model_name = 'model.NER_SOFTMAX_CHAR'
 config.optimizer = 'sgd'
+
+config.use_pretrain_embd = True
 
 # config postprocess
 config.is_cuda = config.is_cuda and torch.cuda.is_available()

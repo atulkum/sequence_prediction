@@ -47,7 +47,11 @@ class Vocab(object):
         id_to_word = {i + start_vocab_len: v[0] for i, v in enumerate(sorted_items)}
         '''
         #augmnet with pretrained words
-        self.glove_vectors = self.get_glove()
+        if self.config.use_pretrain_embd:
+            self.glove_vectors = self.get_glove()
+        else:
+            self.glove_vectors = {}
+
         word_freq_map.update(self.glove_vectors.keys())
 
         id_to_word = {}
@@ -101,6 +105,7 @@ class Vocab(object):
                 word_to_vector[word] = vector
 
         return word_to_vector
+
 
 if __name__ == '__main__':
     from config import config

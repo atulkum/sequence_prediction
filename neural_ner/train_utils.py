@@ -111,23 +111,20 @@ class Evaluter(object):
                 print (line)
 
             # Confusion matrix with accuracy for each tag
-            print (("{: >2}{: >7}{: >7}%s{: >9}" % ("{: >7}" * self.n_tags)) % (
-                "ID", "NE", "Total",
-                *([self.vocab.id_to_tag[i] for i in range(self.n_tags)] + ["Percent"])
-            ))
+            format_str = "{: >2}{: >7}{: >7}%s{: >9}" % ("{: >7}" * self.n_tags)
+            values = [self.vocab.id_to_tag[i] for i in range(self.n_tags)]
+            print(format_str.format("ID", "NE", "Total", *values, "Percent"))
+
             for i in range(self.n_tags):
-                print (("{: >2}{: >7}{: >7}%s{: >9}" % ("{: >7}" * self.n_tags)) % (
-                    str(i), self.vocab.id_to_tag[i], str(self.count[i].sum()),
-                    *([self.count[i][j] for j in range(self.n_tags)] +
-                      ["%.3f" % (self.count[i][i] * 100. / max(1, self.count[i].sum()))])
-            ))
+                percent = "{:.3f}".format(self.count[i][i] * 100. / max(1, self.count[i].sum()))
+                values = [self.count[i][j] for j in range(self.n_tags)]
+                print (format_str.format(str(i), self.vocab.id_to_tag[i], str(self.count[i].sum()), *values, percent))
 
             # Global accuracy
-            print ("%i/%i (%.5f%%)" % (
+            print ("{}/{} ({:.3f} %)" .format (
                 self.count.trace(), self.count.sum(), 100. * self.count.trace() / max(1, self.count.sum())
             ))
 
         # F1 on all entities
         return float(eval_lines[1].strip().split()[-1])
-
 
