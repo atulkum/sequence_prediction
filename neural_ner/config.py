@@ -22,7 +22,7 @@ config.validation_file='eng.testa'
 config.test_file='eng.testb'
 config.label_type= 'iobes' #'iob'
 
-config.lr = 0.001
+config.lr = 0.015
 config.lr_decay = 0.05
 config.dropout_ratio = 0.5
 
@@ -55,7 +55,7 @@ config.is_cuda = True
 config.is_l2_loss = True
 
 config.model_name = 'model.NER_SOFTMAX_CHAR_CRF'
-config.optimizer = 'sgd_mom'
+config.optimizer = 'sgd'
 
 config.use_pretrain_embd = True
 
