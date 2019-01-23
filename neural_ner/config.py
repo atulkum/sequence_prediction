@@ -23,15 +23,16 @@ config.test_file='eng.testb'
 config.label_type= 'iobes' #'iob'
 
 config.lr = 0.001
+config.lr_decay = 0.05
 config.dropout_ratio = 0.5
 
 config.max_grad_norm = 5.0
-config.batch_size = 1
+config.batch_size = 10
 config.num_epochs = 100
 
 config.print_every = 100
 
-config.reg_lambda = 0.00007
+config.reg_lambda = 1e-8
 
 config.dropout_rate = 0.5
 
@@ -39,8 +40,8 @@ config.lower = True
 config.zeros = True
 config.random_init = True
 
-config.char_embd_dim = 25
-config.char_lstm_dim = 25
+config.char_embd_dim = 30
+config.char_lstm_dim = 30
 config.word_emdb_dim = 100
 config.word_lstm_dim = 100
 config.caps_embd_dim = 3
@@ -51,7 +52,7 @@ config.vocab_size = int(4e5)
 
 config.is_cuda = True
 
-config.is_l2_loss = False
+config.is_l2_loss = True
 
 config.model_name = 'model.NER_SOFTMAX_CHAR_CRF'
 config.optimizer = 'sgd_mom'
