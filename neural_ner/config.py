@@ -25,6 +25,7 @@ config.label_type= 'iobes'
 #config.label_type= 'iob'
 
 config.lr = 0.0015
+
 config.lr_decay = 0.05
 config.dropout_ratio = 0.5
 config.momentum = 0.9
@@ -58,6 +59,7 @@ config.is_cuda = True
 config.is_l2_loss = True
 
 config.model_name = 'model.NER_SOFTMAX_CHAR_CRF'
+
 config.optimizer = 'adam'
 
 config.use_pretrain_embd = True
