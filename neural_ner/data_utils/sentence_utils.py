@@ -15,7 +15,7 @@ def pad_items(items, is_tag=False):
 
     return np.array(padded_items), np.array(padded_items_len)
 
-def pad_chars(items, max_word_len):
+def pad_chars(items):
     padded_items = []
     padded_items_len = [len(item) for item in items]
     max_length = max(padded_items_len)
@@ -24,10 +24,6 @@ def pad_chars(items, max_word_len):
     for item in items:
         padding = [pad_id] * (max_length - len(item))
         padded_items.append(item + padding)
-    for i in range(len(items), max_word_len):
-        padding = [pad_id] * max_length
-        padded_items.append(padding)
-        padded_items_len.append(1)
 
     return np.array(padded_items), np.array(padded_items_len)
 
@@ -62,8 +58,8 @@ def prepare_sentence(s, vocab, config):
     str_words = [w[0] for w in s]
     word_seq, word_char_seq = get_char_word_seq(str_words, config.lower, config.zeros)
 
-    words = [vocab.word_to_id[w] if w in vocab.word_to_id else Constants.UNK_ID for w in word_seq]
-    chars = [[vocab.char_to_id[c] for c in char_seq if c in vocab.char_to_id] for char_seq in word_char_seq]
+    words = [vocab.word_to_id.get(w, Constants.UNK_ID) for w in word_seq]
+    chars = [[vocab.char_to_id.get(c, Constants.UNK_ID) for c in char_seq] for char_seq in word_char_seq]
     caps = [cap_feature(w) for w in str_words]
 
     return {
@@ -74,3 +70,16 @@ def prepare_sentence(s, vocab, config):
         'raw_sentence':str_words
     }
 
+if __name__ == '__main__':
+    from config import config
+    from data_utils.vocab import Vocab
+    from data_utils.utils import prepare_dataset
+
+    vocab = Vocab(config)
+
+    sentences = [['a O', 'b O', 'c O', '| O']]
+
+    data = prepare_dataset(sentences, vocab, config)
+    datum = data[0]
+    chars = datum['chars']
+    chars_padded, chars_padded_lens = pad_chars(chars)

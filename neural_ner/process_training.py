@@ -108,8 +108,6 @@ class Processor(object):
         logging.info("Dev: Epoch %d, Iter %d, loss: %f, F1: %f" % (epoch, global_step, dev_loss, dev_f1))
         write_summary(dev_f1, "dev/F1", summary_writer, global_step)
 
-        self.evaluate_test()
-
         return dev_f1
 
     def inference(self, str):

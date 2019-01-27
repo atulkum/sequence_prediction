@@ -55,9 +55,10 @@ class NER_SOFTMAX_CHAR(nn.Module):
     def forward(self, batch):
         sentence = batch['words']
         lengths = batch['words_lens']
+
         if self.config.is_caps:
             caps = batch['caps']
-
+        max_length = torch.max(lengths)
         char_emb = []
         word_embed = self.word_embeds(sentence)
         for chars, char_len in batch['chars']:
@@ -65,7 +66,6 @@ class NER_SOFTMAX_CHAR(nn.Module):
             seq_lengths, sort_idx = torch.sort(char_len, descending=True)
             _, unsort_idx = torch.sort(sort_idx)
             seq_embed = seq_embed[sort_idx]
-
             packed = pack_padded_sequence(seq_embed, seq_lengths, batch_first=True)
             output, hidden = self.lstm_char(packed)
             lstm_feats, _ = pad_packed_sequence(output, batch_first=True)
@@ -79,7 +79,10 @@ class NER_SOFTMAX_CHAR(nn.Module):
             seq_rep_bwd = seq_rep[unsort_idx, last_idx, 1]
 
             seq_out = torch.cat([seq_rep_fwd, seq_rep_bwd], 1)
+            # fill up the dummy char embedding for padding
+            seq_out = F.pad(seq_out, (0, 0, 0, max_length - seq_out.size(0)))
             char_emb.append(seq_out.unsqueeze(0))
+
         char_emb = torch.cat(char_emb, 0) #b x n x c_dim
 
         if self.config.is_caps:

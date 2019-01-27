@@ -66,8 +66,6 @@ class DatasetConll2003(object):
         all_chars = []
         raw_sentences = []
 
-        max_length = max(words_len)
-
         for i in idx:
             datum = batch[i]
             for v in features:
@@ -76,7 +74,7 @@ class DatasetConll2003(object):
             raw_sentences.append(datum['raw_sentence'])
 
             chars = datum['chars']
-            chars_padded, chars_padded_lens = pad_chars(chars, max_length)
+            chars_padded, chars_padded_lens = pad_chars(chars)
             chars_padded = torch.Tensor(chars_padded).long()
             chars_padded_lens = torch.Tensor(chars_padded_lens).long()
             if self.config.is_cuda:
