@@ -4,9 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from data_utils.sentence_utils import Constants
+from data_utils.constant import Constants
 import logging
-import numpy as np
 
 from crf import CRF_Loss
 from model_utils import get_mask, init_lstm_wt, init_linear_wt, get_word_embd
@@ -21,13 +20,19 @@ class NER_SOFTMAX_CHAR(nn.Module):
 
         self.word_embeds = nn.Embedding.from_pretrained(embd_vector, freeze=False)
         self.char_embeds = nn.Embedding(len(vocab.char_to_id), config.char_embd_dim, padding_idx=Constants.PAD_ID)
-        self.caps_embeds = nn.Embedding(vocab.get_caps_cardinality(), config.caps_embd_dim, padding_idx=Constants.PAD_ID)
+        if config.is_caps:
+            self.caps_embeds = nn.Embedding(vocab.get_caps_cardinality(),
+                                            config.caps_embd_dim, padding_idx=Constants.PAD_ID)
 
         self.lstm_char = nn.LSTM(self.char_embeds.embedding_dim,
                             config.char_lstm_dim,
                             num_layers=1, bidirectional=True, batch_first=True)
-
-        self.lstm = nn.LSTM(self.word_embeds.embedding_dim + config.char_embd_dim * 2 + config.caps_embd_dim,
+        if config.is_caps:
+            self.lstm = nn.LSTM(self.word_embeds.embedding_dim + config.char_embd_dim * 2 + config.caps_embd_dim,
+                            config.word_lstm_dim,
+                            num_layers=1, bidirectional=True, batch_first=True)
+        else:
+            self.lstm = nn.LSTM(self.word_embeds.embedding_dim + config.char_embd_dim * 2,
                             config.word_lstm_dim,
                             num_layers=1, bidirectional=True, batch_first=True)
 
@@ -44,12 +49,14 @@ class NER_SOFTMAX_CHAR(nn.Module):
         init_linear_wt(self.hidden_layer)
         init_linear_wt(self.hidden2tag)
         self.char_embeds.weight.data.uniform_(-1., 1.)
-        self.caps_embeds.weight.data.uniform_(-1., 1.)
+        if config.is_caps:
+            self.caps_embeds.weight.data.uniform_(-1., 1.)
 
     def forward(self, batch):
         sentence = batch['words']
         lengths = batch['words_lens']
-        caps = batch['caps']
+        if self.config.is_caps:
+            caps = batch['caps']
 
         char_emb = []
         word_embed = self.word_embeds(sentence)
@@ -75,9 +82,11 @@ class NER_SOFTMAX_CHAR(nn.Module):
             char_emb.append(seq_out.unsqueeze(0))
         char_emb = torch.cat(char_emb, 0) #b x n x c_dim
 
-        caps_embd = self.caps_embeds(caps)
-
-        word_embed = torch.cat([char_emb, word_embed, caps_embd], 2)
+        if self.config.is_caps:
+            caps_embd = self.caps_embeds(caps)
+            word_embed = torch.cat([char_emb, word_embed, caps_embd], 2)
+        else:
+            word_embed = torch.cat([char_emb, word_embed], 2)
         word_embed = self.dropout(word_embed)
 
         lengths = lengths.view(-1).tolist()
@@ -125,13 +134,20 @@ class NER_SOFTMAX_CHAR_CRF(nn.Module):
         self.crf = CRF_Loss(len(vocab.id_to_tag), config)
         self.config = config
 
+    def get_l2_loss(self):
+        l2_reg = sum(p.norm(2) for p in self.parameters() if p.requires_grad)
+        return self.config.reg_lambda * l2_reg
+
     def forward(self, batch):
         emissions = self.featurizer(batch)
         return emissions
 
     def get_loss(self, logits, y, s_lens):
-        loss = -1 * self.crf.log_likelihood(logits, y)
-        #loss = self.crf.structural_perceptron_loss(logits, y)
+        if self.config.is_structural_perceptron_loss:
+            loss = self.crf.structural_perceptron_loss(logits, y)
+        else:
+            loss = -1 * self.crf.log_likelihood(logits, y)
+
         loss = loss / s_lens.float()
         loss = loss.mean()
         if self.config.is_l2_loss:

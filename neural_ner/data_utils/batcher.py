@@ -17,7 +17,7 @@ class DatasetConll2003(object):
         self.vocab = vocab
         filepath = DatasetConll2003.get_data_file( data_type, config)
 
-        sentences = load_sentences(os.path.join(config.data_dir, filepath), config.label_type)
+        sentences = load_sentences(config.input_format, os.path.join(config.data_dir, filepath), config.label_type)
         self.data = prepare_dataset(sentences, self.vocab, config)
 
         self.i = 0

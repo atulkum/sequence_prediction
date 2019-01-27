@@ -91,8 +91,13 @@ class Processor(object):
                 sys.stdout.flush()
                 pre_epoch = epoch
 
+                lr = self.config.lr / (1 + self.config.lr_decay * epoch)
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = lr
+
             if epoch >= self.config.num_epochs:
                 break
+
 
     def evalute_test_dev(self, summary_writer, epoch, global_step, exp_loss):
         _, train_f1 = self.evaluate(DatasetConll2003.DATA_TYPE_TRAIN, num_samples=1000)
@@ -144,7 +149,7 @@ class Processor(object):
 
         total_loss = loss_per_batch / float(total_num_examples)
         eval_dir = os.path.join(self.config.log_root, 'eval')
-        f1 = ev.get_metric(eval_dir)
+        f1 = ev.get_metric(eval_dir, self.config.verbose)
         return total_loss, f1
 
 if __name__ == "__main__":

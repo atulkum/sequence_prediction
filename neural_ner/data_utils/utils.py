@@ -1,8 +1,54 @@
 import codecs
+import json
 from data_utils.sentence_utils import prepare_sentence
 from data_utils.tag_scheme_utils import update_tag_scheme
+from data_utils.constant import Constants
 
-def load_sentences(path, tag_scheme):
+def load_sentences(input_format, path, tag_scheme):
+    if input_format == 'conll2003':
+        return load_sentences_conll(path, tag_scheme)
+    else:
+        return load_sentences_json(path, tag_scheme)
+
+#for crfsuite formated input
+def load_sentences_json(path, tag_scheme):
+    sentences = []
+
+    for line in codecs.open(path, 'r', 'utf8'):
+        line = line.rstrip()
+        if not line:
+            continue
+
+        json_data = json.loads(line)
+        entities = json_data['entities']
+        sentence = [[t] for t in json_data['tokens']]
+        curr = 0
+        for e in entities:
+            name = e['name']
+            end = e['end']
+            begin = e['begin']
+
+            while curr < begin:
+                sentence[curr].append(Constants.ENTITY_OTHER_TAG)
+                curr += 1
+
+            sentence[curr].append(Constants.ENTITY_BEGIN + name)
+            curr += 1
+            while curr <= end:
+                sentence[curr].append(Constants.ENTITY_INSIDE + name)
+                curr += 1
+
+        while curr < len(sentence):
+            sentence[curr].append('O')
+            curr += 1
+
+        sentences.append(sentence)
+
+    update_tag_scheme(sentences, tag_scheme)
+
+    return sentences
+
+def load_sentences_conll(path, tag_scheme):
     sentences = []
     sentence = []
     for line in codecs.open(path, 'r', 'utf8'):
@@ -35,58 +81,35 @@ def prepare_dataset(sentences, vocab, config):
         data.append(datum)
     return data
 
-''' 
-import numpy as np
-def insert_singletons(words, singletons, p=0.5):
-    new_words = []
-    for word in words:
-        if word in singletons and np.random.uniform() < p:
-            new_words.append(Constants.UNK_ID)
-        else:
-            new_words.append(word)
-    return new_words
+def get_chunks(seq):
+    col_names = ['name', 'end', 'begin']
+    chunks = []
+    chunk_type, chunk_start = None, None
+    for i, tok in enumerate(seq):
+        curr_chunk_type = tok[2:]
+        chunk_prefix = tok[:2]
+        if tok == Constants.ENTITY_OTHER_TAG:
+            if chunk_type is not None:
+                chunk = dict(zip(col_names, [chunk_type, chunk_start, i-1]))
+                chunks.append(chunk)
+                chunk_type, chunk_start = None, None
+        elif chunk_prefix == Constants.ENTITY_BEGIN:
+            if chunk_type is not None:
+                chunk = dict(zip(col_names, [chunk_type, chunk_start, i - 1]))
+                chunks.append(chunk)
 
-import re
-import codecs
-import os
-def augment_with_pretrained(dictionary, ext_emb_path, words):
-    print 'Loading pretrained embeddings from %s...' % ext_emb_path
-    assert os.path.isfile(ext_emb_path)
+            chunk_type, chunk_start = curr_chunk_type, i
+        elif chunk_prefix == Constants.ENTITY_INSIDE:
+            if chunk_type is not None and chunk_type != curr_chunk_type:
+                chunk = dict(zip(col_names, [chunk_type, chunk_start, i - 1]))
+                chunks.append(chunk)
+                chunk_type, chunk_start = None, None
 
-    pretrained = set([
-        line.rstrip().split()[0].strip()
-        for line in codecs.open(ext_emb_path, 'r', 'utf-8')
-        if len(ext_emb_path) > 0
-    ])
+    # end condition
+    if chunk_type is not None:
+        chunk = dict(zip(col_names, [chunk_type, chunk_start, len(seq) - 1]))
+        chunks.append(chunk)
+    return chunks
 
-    if words is None:
-        for word in pretrained:
-            if word not in dictionary:
-                dictionary[word] = 0
-    else:
-        for word in words:
-            if any(x in pretrained for x in [
-                word,
-                word.lower(),
-                re.sub('\d', '0', word.lower())
-            ]) and word not in dictionary:
-                dictionary[word] = 0
 
-    word_to_id, id_to_word = create_mapping(dictionary)
-    return dictionary, word_to_id, id_to_word
-'''
 
-'''
- seq_lengths, sort_idx = torch.sort(seq_lengths, descending=True)
-        _, unsort_idx = torch.sort(sort_idx)
-        seq_embed = seq_embed[sort_idx]
-
-        seq_rep = self.seq_rep(embedded_seqs=seq_embed, seq_lengths=seq_lengths)
-
-        # unsort seq_out
-        seq_out = seq_rep[0][unsort_idx]
-
-        bsz, max_seq_len, dim = word_embed.size()
-        seq_rep_expand = seq_out.view(bsz, 1, -1).expand(-1, max_seq_len, -1)
-        new_embed = torch.cat([seq_rep_expand, word_embed], 2)
-'''

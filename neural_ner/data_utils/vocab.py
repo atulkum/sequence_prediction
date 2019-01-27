@@ -18,8 +18,13 @@ def create_freq_map(item_list):
 class Vocab(object):
     def __init__(self, config):
         self.config = config
-        train_sentences = load_sentences(os.path.join(config.data_dir, config.train_file), config.label_type)
+        train_sentences = load_sentences(config.input_format, os.path.join(config.data_dir, config.train_file), config.label_type)
         self.word_mapping(train_sentences)
+
+        val_sentences = load_sentences(config.input_format, os.path.join(config.data_dir, config.validation_file), config.label_type)
+        test_sentences = load_sentences(config.input_format, os.path.join(config.data_dir, config.test_file), config.label_type)
+        train_sentences.extend(val_sentences)
+        train_sentences.extend(test_sentences)
         self.tag_mapping(train_sentences)
 
     def get_caps_cardinality(self):

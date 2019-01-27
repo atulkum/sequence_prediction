@@ -26,16 +26,17 @@ def get_model(vocab, config, model_file_path, is_eval=False):
 
     return model
 
+
 def get_optimizer(model, config):
     params = list(filter(lambda p: p.requires_grad, model.parameters()))
 
     optimizer = None
     if config.optimizer == 'adam':
-        optimizer = Adam(params, amsgrad=True)
+        optimizer = Adam(params, lr=config.lr, amsgrad=True)
     elif config.optimizer == 'sgd':
-        optimizer = SGD(params, lr=0.01)
+        optimizer = SGD(params, lr=config.lr)
     elif config.optimizer == 'sgd_mom':
-        optimizer = SGD(params, lr=0.01, momentum=0.9)
+        optimizer = SGD(params, lr=config.lr, momentum=config.momentum)
 
     num_params = sum(p.numel() for p in params)
     logging.info("Number of params: %d" % num_params)

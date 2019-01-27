@@ -5,7 +5,7 @@ import tensorflow as tf
 import json
 import numpy as np
 import codecs
-
+from data_utils.utils import get_chunks
 from data_utils.tag_scheme_utils import iobes_iob
 
 def setup_train_dir(config):
@@ -89,18 +89,41 @@ class Evaluter(object):
             if self.label_type == 'IOBES':
                 p_tags = iobes_iob(p_tags)
                 r_tags = iobes_iob(r_tags)
+            self.predictions.append((raw_sentence[i], r_tags, p_tags, s_len))
+
+    def to_crfsuite(self, output_path):
+        crfsuite_data = []
+        for raw_sentence, r_tags, p_tags, s_len in self.predictions:
+            datum = {}
+            datum['entities'] = get_chunks(p_tags)
+            datum['tokens'] = raw_sentence
+            datum['ground_truth_entities'] = get_chunks(r_tags)
+            crfsuite_data.append(datum)
+
+        with codecs.open(output_path, 'w', 'utf8') as f:
+            json.dump(crfsuite_data, f)
+
+    def to_conll(self, output_path):
+        conll_data = []
+        for raw_sentence, r_tags, p_tags, s_len in self.predictions:
             for j in range(s_len):
-                new_line = " ".join([raw_sentence[i][j], r_tags[j], p_tags[j]])
-                self.predictions.append(new_line)
-            self.predictions.append("")
+                new_line = " ".join([raw_sentence[j], r_tags[j], p_tags[j]])
+                conll_data.append(new_line)
+                conll_data.append("")
+
+        with codecs.open(output_path, 'w', 'utf8') as f:
+            f.write("\n".join(conll_data))
 
     def get_metric(self, log_dir, is_cf=False):
         # Write predictions to disk and run CoNLL script externally
         eval_id = np.random.randint(1000000, 2000000)
         output_path = os.path.join(log_dir, "eval.%i.output" % eval_id)
         scores_path = os.path.join(log_dir , "eval.%i.scores" % eval_id)
-        with codecs.open(output_path, 'w', 'utf8') as f:
-            f.write("\n".join(self.predictions))
+
+        self.to_conll(output_path)
+        self.to_crfsuite(output_path + '.json')
+
+
         eval_script = '../conlleval.pl'
         os.system("%s < %s > %s" % (eval_script, output_path, scores_path))
 
@@ -113,18 +136,18 @@ class Evaluter(object):
             # Confusion matrix with accuracy for each tag
             format_str = "{: >2}{: >7}{: >7}%s{: >9}" % ("{: >7}" * self.n_tags)
             values = [self.vocab.id_to_tag[i] for i in range(self.n_tags)]
-            print(format_str.format("ID", "NE", "Total", *values, "Percent"))
+            print(format_str.format("ID", "NE", "Total", values, "Percent"))
 
             for i in range(self.n_tags):
                 percent = "{:.3f}".format(self.count[i][i] * 100. / max(1, self.count[i].sum()))
                 values = [self.count[i][j] for j in range(self.n_tags)]
-                print (format_str.format(str(i), self.vocab.id_to_tag[i], str(self.count[i].sum()), *values, percent))
+                print (format_str.format(str(i), self.vocab.id_to_tag[i], str(self.count[i].sum()), values, percent))
 
             # Global accuracy
             print ("{}/{} ({:.3f} %)" .format (
                 self.count.trace(), self.count.sum(), 100. * self.count.trace() / max(1, self.count.sum())
             ))
-
+        print (eval_lines[1])
         # F1 on all entities
         return float(eval_lines[1].strip().split()[-1])
 

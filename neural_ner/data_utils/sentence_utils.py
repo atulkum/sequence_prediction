@@ -1,15 +1,7 @@
 import re
 import numpy as np
 
-class Constants(object):
-    _UNK = b"<UNK>"
-    _PAD = b"<PAD>"
-    _START_VOCAB = [_UNK, _PAD]
-    UNK_ID = 0
-    PAD_ID = 1
-    TAG_PAD_ID = -1
-
-    MAX_CAPS_FEATURE=4
+from data_utils.constant import Constants
 
 def pad_items(items, is_tag=False):
     padded_items = []

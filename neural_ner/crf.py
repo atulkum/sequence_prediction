@@ -2,7 +2,7 @@ from __future__ import unicode_literals, print_function, division
 
 import torch
 import torch.nn as nn
-from data_utils.sentence_utils import Constants
+from data_utils.constant import Constants
 import numpy as np
 
 class CRF_Loss(nn.Module):

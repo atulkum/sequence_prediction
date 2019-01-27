@@ -20,14 +20,17 @@ config.log_root = os.path.join(root_dir, 'log')
 config.train_file='eng.train'
 config.validation_file='eng.testa'
 config.test_file='eng.testb'
-config.label_type= 'iobes' #'iob'
 
-config.lr = 0.001
+config.label_type= 'iobes'
+#config.label_type= 'iob'
+
+config.lr = 0.0015
 config.lr_decay = 0.05
 config.dropout_ratio = 0.5
+config.momentum = 0.9
 
 config.max_grad_norm = 5.0
-config.batch_size = 10
+config.batch_size = 32
 config.num_epochs = 100
 
 config.print_every = 100
@@ -55,9 +58,16 @@ config.is_cuda = True
 config.is_l2_loss = True
 
 config.model_name = 'model.NER_SOFTMAX_CHAR_CRF'
-config.optimizer = 'sgd_mom'
+config.optimizer = 'adam'
 
 config.use_pretrain_embd = True
+
+config.verbose = False
+config.is_caps=True
+config.is_structural_perceptron_loss=False
+
+config.input_format='conll2003' #crfsuite
+
 
 # config postprocess
 config.is_cuda = config.is_cuda and torch.cuda.is_available()
