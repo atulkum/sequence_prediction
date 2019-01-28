@@ -21,26 +21,14 @@ def load_sentences_json(path, tag_scheme):
 
         json_data = json.loads(line)
         entities = json_data['entities']
-        sentence = [[t] for t in json_data['tokens']]
-        curr = 0
+        sentence = [[t, Constants.ENTITY_OTHER_TAG] for t in json_data['tokens']]
+
         for e in entities:
-            name = e['name']
-            end = e['end']
-            begin = e['begin']
+            name, end, begin = e['name'], e['end'], e['begin']
 
-            while curr < begin:
-                sentence[curr].append(Constants.ENTITY_OTHER_TAG)
-                curr += 1
-
-            sentence[curr].append(Constants.ENTITY_BEGIN + name)
-            curr += 1
-            while curr <= end:
-                sentence[curr].append(Constants.ENTITY_INSIDE + name)
-                curr += 1
-
-        while curr < len(sentence):
-            sentence[curr].append('O')
-            curr += 1
+            sentence[begin][1] = Constants.ENTITY_BEGIN + name
+            for i in range(begin+1, end+1):
+                sentence[i][1] = Constants.ENTITY_INSIDE + name
 
         sentences.append(sentence)
 
