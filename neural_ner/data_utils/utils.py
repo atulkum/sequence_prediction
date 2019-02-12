@@ -70,7 +70,7 @@ def prepare_dataset(sentences, vocab, config):
     return data
 
 def get_chunks(seq):
-    col_names = ['name', 'end', 'begin']
+    col_names = ['name', 'begin', 'end']
     chunks = []
     chunk_type, chunk_start = None, None
     for i, tok in enumerate(seq):
