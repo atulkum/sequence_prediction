@@ -3,7 +3,12 @@ from __future__ import unicode_literals, print_function, division
 import torch
 import torch.nn as nn
 from data_utils.constant import Constants
+from model_utils import get_mask
+
 import numpy as np
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 class CRF_Loss(nn.Module):
     def __init__(self, tagset_size, config):
@@ -66,7 +71,8 @@ class CRF_Loss(nn.Module):
         log_p_y_x = self.get_log_p_Y_X(emissions, mask, tags)
         return log_p_y_x - log_z
 
-    def viterbi_decode(self, emissions, mask):
+    def viterbi_decode_batch(self, emissions, lengths):
+        mask = get_mask(lengths, self.config)
         seq_len = emissions.shape[1]
 
         log_prob = emissions[:, 0].clone()
@@ -133,10 +139,52 @@ class CRF_Loss(nn.Module):
 
         return sentence_score, torch.flip(all_labels, [1])
 
+    def viterbi_decode(self, emissions, lengths):
+        bsz = emissions.shape[0]
+        all_path_indices = []
+        all_path_scores = []
+
+        for i in range(bsz):
+            viterbi_path, viterbi_score = self.viterbi_decode_single(lengths[i], emissions[i])
+            all_path_indices.append(viterbi_path)
+            all_path_scores.append(viterbi_score)
+
+        return all_path_indices, all_path_scores
+
+    def viterbi_decode_single(self, sequence_length, emission, top_k=1):
+        num_tags = emission.shape[0]
+        path_scores,  path_indices= [], []
+        path_scores.append(emission[0, :].unsqueeze(0))
+        for timestep in range(1, sequence_length):
+            summed_potentials = path_scores[timestep - 1].unsqueeze(-1) + self.transitions
+            scores, paths = torch.topk(summed_potentials, k=top_k, dim=0)
+            path_scores.append(emission[timestep, :] + scores.squeeze())
+            path_indices.append(paths.squeeze())
+
+        viterbi_score, best_paths = torch.topk(path_scores[-1], k=top_k, dim=0)
+        viterbi_paths = []
+        for i in range(top_k):
+            viterbi_path = [best_paths[i]]
+            for backward_timestep in reversed(path_indices):
+                viterbi_path.append(int(backward_timestep.view(-1)[viterbi_path[-1]]))
+            viterbi_path.reverse()
+
+            viterbi_path = [j % num_tags for j in viterbi_path]
+            viterbi_paths.append(viterbi_path)
+        '''
+        viterbi_path = [int(best_path.numpy())]
+        for backward_timestep in reversed(path_indices):
+            viterbi_path.append(int(backward_timestep[viterbi_path[-1]]))
+        # Reverse the backward path.
+        viterbi_path.reverse()
+         '''
+        return viterbi_paths, viterbi_score
+
+
     def structural_perceptron_loss(self, emissions, tags):
         mask = tags.ne(Constants.TAG_PAD_ID).float()
-
-        best_scores, pred = self.viterbi_decode(emissions, mask)
+        sequence_lnegths = mask.sum(dim=1)
+        best_scores, pred = self.viterbi_decode(emissions, sequence_lnegths)
         log_p_y_x = self.get_log_p_Y_X(emissions, mask, tags)
 
         delta = torch.sum(tags.ne(pred).float()*mask, 1)

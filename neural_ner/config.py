@@ -66,7 +66,7 @@ config.use_pretrain_embd = True
 
 config.verbose = False
 config.is_caps=True
-config.is_structural_perceptron_loss=False
+config.is_structural_perceptron_loss=True
 
 config.input_format='conll2003' #crfsuite
 
