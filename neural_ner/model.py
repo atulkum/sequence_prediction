@@ -8,7 +8,7 @@ from data_utils.constant import Constants
 import logging
 
 from crf import CRF_Loss
-from model_utils import init_lstm_wt, init_linear_wt, get_word_embd
+from model_utils import init_lstm_wt, init_linear_wt, get_word_embd, get_mask
 
 logging.basicConfig(level=logging.INFO)
 
@@ -158,6 +158,6 @@ class NER_SOFTMAX_CHAR_CRF(nn.Module):
         return loss
 
     def predict(self, emissions, lengths):
-
+        mask = get_mask(lengths, self.config)
         best_scores, pred = self.crf.viterbi_decode(emissions, mask)
         return pred
