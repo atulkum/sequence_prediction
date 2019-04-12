@@ -58,7 +58,7 @@ config.is_cuda = True
 
 config.is_l2_loss = True
 
-config.model_name = 'model.NER_SOFTMAX_CHAR_CRF'
+config.model_name = 'model_tx.NER_SOFTMAX_CHAR_CRF'
 
 config.optimizer = 'adam'
 
@@ -66,7 +66,7 @@ config.use_pretrain_embd = True
 
 config.verbose = False
 config.is_caps=True
-config.is_structural_perceptron_loss=True
+config.is_structural_perceptron_loss=False
 
 config.input_format='conll2003' #crfsuite
 
