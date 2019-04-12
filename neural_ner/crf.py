@@ -71,8 +71,7 @@ class CRF_Loss(nn.Module):
         log_p_y_x = self.get_log_p_Y_X(emissions, mask, tags)
         return log_p_y_x - log_z
 
-    def viterbi_decode_batch(self, emissions, lengths):
-        mask = get_mask(lengths, self.config)
+    def viterbi_decode_batch(self, emissions, mask):
         seq_len = emissions.shape[1]
 
         log_prob = emissions[:, 0].clone()

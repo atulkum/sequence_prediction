@@ -43,12 +43,12 @@ def get_optimizer(model, config):
 
     return optimizer, params
 
-def get_mask(lengths, config):
+def get_mask(lengths, is_cuda):
     seq_lens = lengths.view(-1, 1)
     max_len = torch.max(seq_lens)
     range_tensor = torch.arange(max_len).unsqueeze(0)
     range_tensor = range_tensor.expand(seq_lens.size(0), range_tensor.size(1))
-    if config.is_cuda:
+    if is_cuda:
         range_tensor = range_tensor.cuda()
     mask = (range_tensor < seq_lens).float()
     return mask

@@ -81,12 +81,11 @@ class Processor(object):
                 dev_f1 = self.evalute_test_dev(summary_writer, epoch, global_step, exp_loss)
 
                 if best_dev_f1 is None or dev_f1 > best_dev_f1:
-                    if best_dev_f1:
+                    best_dev_f1 = dev_f1
+                    if best_dev_f1 > 90:
                         bestmodel_dir = os.path.join(train_dir, 'bestmodel')
                         logging.info("Saving to %s..." % bestmodel_dir)
                         save_model(self.model, optimizer, exp_loss, global_step, epoch, bestmodel_dir)
-
-                    best_dev_f1 = dev_f1
 
                 sys.stdout.flush()
                 pre_epoch = epoch
