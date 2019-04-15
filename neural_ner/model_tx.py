@@ -35,11 +35,11 @@ class NER_SOFTMAX_CHAR(nn.Module):
         if config.is_caps:
             input_size += config.caps_embd_dim
 
-        model_dim = 256 #512
-        num_head = 4 #8
+        model_dim = 128 #512
+        num_head = 2 #8
         num_layer = 2 #6
         dropout_ratio = 0.1
-        affine_dim = 512 #2048
+        affine_dim = 256 #2048
 
         self.tx_proj = nn.Linear(input_size, model_dim)
         self.lstm = Encoder(num_layer, num_head, dropout_ratio, model_dim, affine_dim)
