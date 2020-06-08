@@ -108,11 +108,10 @@ class NER_SOFTMAX_CHAR(nn.Module):
         h = self.tanh_layer(h)
         logits = self.hidden2tag(h)
         logits = logits.view(b, t_k, -1)
-
+        logits = F.log_softmax(logits, dim=2)
         return logits
 
     def neg_log_likelihood(self, logits, y, s_lens):
-        log_smx = F.log_softmax(logits, dim=2)
         loss = F.nll_loss(log_smx.transpose(1, 2), y, ignore_index=Constants.TAG_PAD_ID, reduction='none')
         loss = loss.sum(dim=1) / s_lens.float()
         loss = loss.mean()
