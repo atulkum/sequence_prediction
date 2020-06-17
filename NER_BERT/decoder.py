@@ -3,6 +3,7 @@ import numpy as np
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 
+#reference https://github.com/allenai/allennlp/blob/a7265c04078964ea2b80a78fc3967bde8d16072d/allennlp/nn/util.py#L403
 
 @torch.jit.script
 def viterbi_decode_single_jit(tag_sequence, transition_matrix):
