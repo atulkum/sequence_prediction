@@ -4,6 +4,7 @@
 ### Datset
 - - [x] conll2003
 - - [ ] atis
+
 ### Neural NER
 - - [x] CharLSTM+WordLSTM+CRF: [Lample .etc, NAACL16](http://www.aclweb.org/anthology/N/N16/N16-1030.pdf)
   - - [x] Make a CoNLL-2003 batcher
@@ -12,6 +13,8 @@
   - - [x] Implement CharLSTM + WordLSTM + softmax
   - - [x] Implement CharLSTM + WordLSTM + CRF
 - - [x] Tranformer encoder + CRF
+- - [x] BERT encoder + CRF
+- - [x] pytorch JIT compilable Viterbi Decoder  https://github.com/atulkum/sequence_prediction/blob/master/NER_BERT/decoder.py#L9
 
 ### Slot Filling + intent prediciton
 - - [ ] [Attention-Based Recurrent Neural Network Models for Joint Intent Detection and Slot Filling](https://arxiv.org/abs/1609.01454)
