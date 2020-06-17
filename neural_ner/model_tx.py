@@ -10,6 +10,8 @@ import logging
 from crf import CRF_Loss
 from model_utils import init_lstm_wt, init_linear_wt, get_word_embd, get_mask
 
+from transformer import Encoder
+
 logging.basicConfig(level=logging.INFO)
 
 class NER_SOFTMAX_CHAR(nn.Module):
@@ -27,17 +29,23 @@ class NER_SOFTMAX_CHAR(nn.Module):
         self.lstm_char = nn.LSTM(self.char_embeds.embedding_dim,
                             config.char_lstm_dim,
                             num_layers=1, bidirectional=True, batch_first=True)
+
+        input_size = self.word_embeds.embedding_dim + config.char_embd_dim * 2
+
         if config.is_caps:
-            self.lstm = nn.LSTM(self.word_embeds.embedding_dim + config.char_embd_dim * 2 + config.caps_embd_dim,
-                            config.word_lstm_dim,
-                            num_layers=1, bidirectional=True, batch_first=True)
-        else:
-            self.lstm = nn.LSTM(self.word_embeds.embedding_dim + config.char_embd_dim * 2,
-                            config.word_lstm_dim,
-                            num_layers=1, bidirectional=True, batch_first=True)
+            input_size += config.caps_embd_dim
+
+        model_dim = 128 #512
+        num_head = 2 #8
+        num_layer = 2 #6
+        dropout_ratio = 0.1
+        affine_dim = 256 #2048
+
+        self.tx_proj = nn.Linear(input_size, model_dim)
+        self.lstm = Encoder(num_layer, num_head, dropout_ratio, model_dim, affine_dim)
 
         self.dropout = nn.Dropout(config.dropout_rate)
-        self.hidden_layer = nn.Linear(config.word_lstm_dim * 2, config.word_lstm_dim)
+        self.hidden_layer = nn.Linear(model_dim, config.word_lstm_dim)
         self.tanh_layer = torch.nn.Tanh()
 
         self.hidden2tag = nn.Linear(config.word_lstm_dim, len(vocab.id_to_tag))
@@ -45,7 +53,7 @@ class NER_SOFTMAX_CHAR(nn.Module):
         self.config = config
 
         init_lstm_wt(self.lstm_char)
-        init_lstm_wt(self.lstm)
+
         init_linear_wt(self.hidden_layer)
         init_linear_wt(self.hidden2tag)
         self.char_embeds.weight.data.uniform_(-1., 1.)
@@ -92,12 +100,9 @@ class NER_SOFTMAX_CHAR(nn.Module):
             word_embed = torch.cat([char_emb, word_embed], 2)
         word_embed = self.dropout(word_embed)
 
-        lengths = lengths.view(-1).tolist()
-        packed = pack_padded_sequence(word_embed, lengths, batch_first=True)
-        output, hidden = self.lstm(packed)
-
-        lstm_feats, _ = pad_packed_sequence(output, batch_first=True)  # h dim = B x t_k x n
-        lstm_feats = lstm_feats.contiguous()
+        mask = get_mask(lengths, self.config.is_cuda)
+        word_embed_proj = self.tx_proj(word_embed)
+        lstm_feats = self.lstm(word_embed_proj, mask.unsqueeze(-1))
 
         b, t_k, d = list(lstm_feats.size())
 
@@ -158,6 +163,6 @@ class NER_SOFTMAX_CHAR_CRF(nn.Module):
         return loss
 
     def predict(self, emissions, lengths):
-        mask = get_mask(lengths, self.config)
-        best_scores, pred = self.crf.viterbi_decode(emissions, mask)
+        mask = get_mask(lengths, self.config.is_cuda)
+        best_scores, pred = self.crf.viterbi_decode_batch(emissions, mask)
         return pred

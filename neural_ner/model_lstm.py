@@ -10,6 +10,8 @@ import logging
 from crf import CRF_Loss
 from model_utils import init_lstm_wt, init_linear_wt, get_word_embd, get_mask
 
+from transformer import Encoder
+
 logging.basicConfig(level=logging.INFO)
 
 class NER_SOFTMAX_CHAR(nn.Module):
@@ -27,12 +29,13 @@ class NER_SOFTMAX_CHAR(nn.Module):
         self.lstm_char = nn.LSTM(self.char_embeds.embedding_dim,
                             config.char_lstm_dim,
                             num_layers=1, bidirectional=True, batch_first=True)
+
+        input_size = self.word_embeds.embedding_dim + config.char_embd_dim * 2
+
         if config.is_caps:
-            self.lstm = nn.LSTM(self.word_embeds.embedding_dim + config.char_embd_dim * 2 + config.caps_embd_dim,
-                            config.word_lstm_dim,
-                            num_layers=1, bidirectional=True, batch_first=True)
-        else:
-            self.lstm = nn.LSTM(self.word_embeds.embedding_dim + config.char_embd_dim * 2,
+            input_size += config.caps_embd_dim
+
+        self.lstm = nn.LSTM(input_size,
                             config.word_lstm_dim,
                             num_layers=1, bidirectional=True, batch_first=True)
 
@@ -105,11 +108,10 @@ class NER_SOFTMAX_CHAR(nn.Module):
         h = self.tanh_layer(h)
         logits = self.hidden2tag(h)
         logits = logits.view(b, t_k, -1)
-
+        logits = F.log_softmax(logits, dim=2)
         return logits
 
     def neg_log_likelihood(self, logits, y, s_lens):
-        log_smx = F.log_softmax(logits, dim=2)
         loss = F.nll_loss(log_smx.transpose(1, 2), y, ignore_index=Constants.TAG_PAD_ID, reduction='none')
         loss = loss.sum(dim=1) / s_lens.float()
         loss = loss.mean()
@@ -158,6 +160,6 @@ class NER_SOFTMAX_CHAR_CRF(nn.Module):
         return loss
 
     def predict(self, emissions, lengths):
-        mask = get_mask(lengths, self.config)
-        best_scores, pred = self.crf.viterbi_decode(emissions, mask)
+        mask = get_mask(lengths, self.config.is_cuda)
+        best_scores, pred = self.crf.viterbi_decode_batch(emissions, mask)
         return pred

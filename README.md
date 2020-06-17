@@ -11,6 +11,7 @@
   - - [x] Implement WordLSTM + softmax
   - - [x] Implement CharLSTM + WordLSTM + softmax
   - - [x] Implement CharLSTM + WordLSTM + CRF
+- - [x] Tranformer encoder + CRF
 
 ### Slot Filling + intent prediciton
 - - [ ] [Attention-Based Recurrent Neural Network Models for Joint Intent Detection and Slot Filling](https://arxiv.org/abs/1609.01454)
