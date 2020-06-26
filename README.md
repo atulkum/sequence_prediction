@@ -1,4 +1,4 @@
-# Various BERT and BiLSTM based model for NER 
+# Various BERT-CRF and BiLSTM-CRF based model for NER 
 
 ## TO-DO
 ### Datset
