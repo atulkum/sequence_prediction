@@ -1,4 +1,4 @@
-# Sequence Prediction
+# Various BERT and BiLSTM based model for NER 
 
 ## TO-DO
 ### Datset
